@@ -1,0 +1,135 @@
+/* Proste style szkieletu. Właściwy wygląd powstanie razem z grafikiem (etap 3). */
+:root {
+  --bg: #f7f5f2;
+  --surface: #ffffff;
+  --text: #1f1d1a;
+  --muted: #6b665f;
+  --accent: #8a3b5c;
+  --accent-text: #ffffff;
+  --border: #e3ded6;
+  --danger: #a12828;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171513;
+    --surface: #221f1c;
+    --text: #f1ede7;
+    --muted: #a59e94;
+    --accent: #d77fa3;
+    --accent-text: #1a1416;
+    --border: #3a352f;
+    --danger: #f08a8a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  line-height: 1.5;
+}
+
+.top {
+  padding: 14px 20px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.page {
+  max-width: 560px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 12px;
+}
+
+p {
+  margin: 0 0 12px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+input[type='email'] {
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+button {
+  font: inherit;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+a {
+  color: var(--accent);
+}
+
+.alert {
+  color: var(--danger);
+  margin: 12px 0 16px;
+}
+
+.firms {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+}
+
+.firms li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.firms li:last-child {
+  border-bottom: 0;
+}
+
+.actions {
+  margin-top: 20px;
+}

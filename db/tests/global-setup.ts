@@ -1,7 +1,9 @@
-// Przed testami: tworzy od zera bazę testową i stosuje wszystkie migracje.
+// Przed testami: tworzy od zera bazę testową, stosuje wszystkie migracje
+// i pozwala logować się rolą app_user (tak jak robi to aplikacja).
 import pg from 'pg';
+import { enableAppLogin } from '../app-login.ts';
 import { migrate } from '../migrate.ts';
-import { ADMIN_URL, TEST_DB, testDatabaseUrl } from './helpers.ts';
+import { ADMIN_URL, TEST_DB, appTestDatabaseUrl, testDatabaseUrl } from './helpers.ts';
 
 export default async function setup(): Promise<void> {
   const admin = new pg.Client({ connectionString: ADMIN_URL });
@@ -13,4 +15,5 @@ export default async function setup(): Promise<void> {
     await admin.end();
   }
   await migrate(testDatabaseUrl());
+  await enableAppLogin(testDatabaseUrl(), appTestDatabaseUrl());
 }

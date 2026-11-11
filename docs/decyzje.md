@@ -1,6 +1,6 @@
 # Decyzje projektu
 
-Wersja 0.1 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
+Wersja 0.2 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
 
 ## 1. Produkt
 
@@ -96,27 +96,37 @@ Przykład dla `min_gap_minutes` = 60 przy stałej siatce co 30 minut (`back_to_b
 
 ## 3. Technologia
 
-- **Język i baza:** TypeScript i Next.js (aplikacja od etapu 2), PostgreSQL 16.
-- **Najpierw baza:** migracje SQL w `db/migrations` są źródłem prawdy, a uruchamia je `db/migrate.ts`. Warstwę zapytań wybieramy przy szkielecie aplikacji, np. Drizzle z odczytem schematu z bazy.
-- **Testy:** Vitest na prawdziwym PostgreSQL (`docker compose`). Każda reguła biznesowa ma test nazwany jak reguła, po polsku. Kod pisze głównie AI, więc testy są głównym narzędziem kontroli.
+- **Język i baza:** TypeScript, Next.js 16 (App Router), PostgreSQL 16.
+- **Najpierw baza:** migracje SQL w `db/migrations` są źródłem prawdy, a uruchamia je `db/migrate.ts`.
+- **Zapytania: Kysely** (wybrane w etapie 2):
+  - typy tabel generuje `kysely-codegen` z bazy po migracjach (`npm run db:types` → `src/lib/db-types.ts`), a CI sprawdza, czy są aktualne;
+  - w bazie nazwy w snake_case, w kodzie camelCase (CamelCasePlugin).
+- **Logowanie: Better Auth z linkiem z maila** (wybrane w etapie 2):
+  - bez haseł; pierwsze logowanie nowym adresem zakłada konto;
+  - link działa 15 minut i tylko raz, a w bazie zapisujemy tylko skrót tokenu;
+  - osoba dodana wcześniej przez szkołę loguje się do tego samego konta (ten sam e-mail), bez dublowania;
+  - Auth.js odpadł: od września 2025 dostaje tylko poprawki bezpieczeństwa, a jego opiekunowie polecają Better Auth.
+- **Maile:** wysyłka przez SMTP (nodemailer). Lokalnie Mailpit z docker-compose łapie wszystkie maile.
+- **Testy:** Vitest na prawdziwym PostgreSQL (`docker compose`). Każda reguła biznesowa ma test nazwany jak reguła, po polsku. Kod pisze głównie AI, więc testy są głównym narzędziem kontroli. Na GitHubie przy każdym PR działają: sprawdzenie typów, testy, zgodność typów bazy i budowanie aplikacji.
 - **Język w kodzie:** identyfikatory po angielsku; komentarze, dokumentacja i interfejs po polsku.
-- **Do wyboru w etapie 2:**
-  - biblioteka logowania (logowanie linkiem z maila),
-  - dostawca maili,
-  - hosting.
+- **Do wyboru przed pierwszym wdrożeniem (po etapie 3):**
+  - hosting aplikacji i bazy,
+  - dostawca maili (wysyłka idzie przez SMTP, więc zmiana to tylko ustawienia),
+  - domena szkoły do wysyłki maili.
 
 ## 4. Wiele firm w jednej bazie
 
 - Każda tabela z danymi firmy ma `organization_id`.
 - Odwołania między takimi tabelami idą przez złożony klucz `(organization_id, id)`. Rezerwacja z firmy A nie może więc wskazać instruktora ani klienta z firmy B, nawet przy błędzie w kodzie.
 - **Row-level security:**
-  - aplikacja łączy się rolą `app_user`;
-  - na początku każdej transakcji ustawia `set_config('app.organization_id', …, true)` i `app.user_id`;
+  - aplikacja loguje się do bazy rolą `app_user` (hasło ustawia `npm run db:app-login`) i nie wystartuje z innym kontem, bo np. właściciel bazy omija RLS;
+  - dane firmy czyta i zmienia tylko przez `withTenant()`, które na początku transakcji ustawia `set_config('app.organization_id', …, true)` i `app.user_id`;
   - bez ustawionej firmy nie widzi żadnych danych firm.
+- **Tabele logowania** (`auth_sessions`, `auth_accounts`, `auth_verifications`) są wspólne dla całego systemu, bez `organization_id` i RLS.
 - **Konta:** `users` to konto logowania wspólne dla całego systemu. Rola w firmie siedzi w `memberships` (właściciel, admin, instruktor). Klient to osobny rekord w `clients`, z kontem albo bez.
 - **Co widzi zalogowany użytkownik:** swoje członkostwa i profile klienta we wszystkich firmach, ale tylko do odczytu. Dzięki temu po zalogowaniu wybiera firmę.
 - **Tabela `organizations`:** można ją czytać bez kontekstu (publiczna strona rezerwacji po adresie). Nowe firmy zakłada platforma, nie aplikacja.
-- **Nic nie kasujemy:** instruktorzy, usługi i pakiety mają flagę `active`, a historia płatności i lekcji zostaje.
+- **Nic nie kasujemy:** instruktorzy, usługi i pakiety mają flagę `active`, a historia płatności i lekcji zostaje. Wyjątek: sesje i zużyte tokeny logowania, bo to dane techniczne.
 - **Czas:**
   - rezerwacje są zapisane jako `timestamptz`;
   - stałe godziny pracy są w czasie lokalnym firmy (`organizations.timezone`, domyślnie Europe/Warsaw);
@@ -133,8 +143,8 @@ Przykład dla `min_gap_minutes` = 60 przy stałej siatce co 30 minut (`back_to_b
 
 ## 6. Etapy
 
-1. **Ten PR:** decyzje, model danych (migracja SQL) i testy bazy.
-2. Szkielet Next.js, logowanie, wybór firmy, połączenie z bazą jako `app_user`.
+1. Decyzje, model danych (migracja SQL) i testy bazy — gotowe (PR #1).
+2. **Ten PR:** szkielet Next.js, logowanie linkiem z maila, wybór firmy, połączenie z bazą jako `app_user`, testy na GitHubie.
 3. Kalendarz i rezerwacje. Wyliczanie wolnych terminów to czysta funkcja: dostępność minus rezerwacje i przerwy, potem starty (jedna po drugiej albo co stałą liczbę minut) i reguły. Do tego testy każdej reguły, rezerwacja i odwołanie z historią lekcji.
 4. Płatności: Stripe Checkout, webhook, gotówka w panelu.
 5. Przypomnienia i zadania w tle: wygasanie blokad, oznaczanie lekcji jako odbytych, przejście klienta z nowego na stałego.
