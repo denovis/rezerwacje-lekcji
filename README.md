@@ -24,6 +24,8 @@ Logowanie: wpisz adres podany w `db:seed`. Mail z linkiem nie wychodzi na zewną
 
 Dane startowe zakładają też instruktora z godzinami pracy pon–pt 16:00–21:00 i parę klientów `para@example.com` z 5 lekcjami na koncie. Zaloguj się adresem pary, żeby zarezerwować i odwołać lekcję. Inny adres pary: `npm run db:seed -- twoj@adres.pl para@adres.pl`.
 
+Instruktorów, godziny pracy, urlopy, reguły grafiku i usługi zmienia właściciel w panelu: przycisk „Ustawienia grafiku” nad kalendarzem. Żeby zobaczyć kalendarz instruktora, wpisz tam przy instruktorze dowolny adres (np. `instruktor@example.com`) i zaloguj się nim.
+
 ## Testy
 
 ```bash

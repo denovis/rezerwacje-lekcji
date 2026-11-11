@@ -49,6 +49,20 @@ export interface CalendarSlot extends Timed {
   dateLabel: string;
 }
 
+/** Urlop, wolne albo dodatkowe godziny instruktora w jednym dniu siatki (wpis na kilka dni to kilka bloków). */
+export interface CalendarException extends Timed {
+  /** Klucz bloku: wpis i dzień. */
+  key: string;
+  id: string;
+  kind: 'unavailable' | 'extra';
+  date: string;
+  instructorId: string;
+  instructorName: string;
+  /** Cały okres wpisu, np. „pon., 11 stycznia – śr., 13 stycznia”. */
+  periodLabel: string;
+  note: string | null;
+}
+
 export interface WeekData {
   timeZone: string;
   /** Poniedziałek tygodnia (RRRR-MM-DD). */
@@ -63,6 +77,8 @@ export interface WeekData {
   /** Zakres godzin siatki: pełne godziny, stały z tygodnia na tydzień (godziny pracy + lekcje). */
   range: Timed;
   isStaff: boolean;
+  /** Sam instruktor: widzi lekcje, które prowadzi, tylko do podglądu (bez rezerwacji i odwołań). */
+  isInstructor: boolean;
   /** Profil klienta zalogowanej osoby. */
   client: { id: string; balance: number; balanceLabel: string; creditLimit: number } | null;
   /** Najbliższe zaplanowane lekcje klienta (także w kolejnych tygodniach). */
@@ -74,6 +90,8 @@ export interface WeekData {
   service: { id: string; name: string; durationMinutes: number; creditCost: number } | null;
   lessons: CalendarLesson[];
   slots: CalendarSlot[];
+  /** Urlopy, wolne i dodatkowe godziny instruktorów (tylko dla szkoły). */
+  exceptions: CalendarException[];
 }
 
 export interface Placed<T> {

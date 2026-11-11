@@ -1,18 +1,26 @@
 'use client';
 // Kalendarz tygodniowy panelu: siatka godzin jak w Google Calendar albo prostsza lista dni.
 // Klient klika wolny termin, żeby zarezerwować, i swoją lekcję, żeby ją odwołać.
-// Szkoła dodatkowo klika puste miejsce w siatce, żeby wpisać lekcję o dowolnej godzinie.
+// Szkoła dodatkowo klika puste miejsce w siatce, żeby wpisać lekcję o dowolnej godzinie, wolne
+// albo dodatkowe godziny; wolne widać jako szary pas. Instruktor tylko ogląda swoje lekcje.
 import Link from 'next/link';
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
-import { layoutDay, type CalendarDay, type CalendarLesson, type CalendarSlot, type WeekData } from '../../../lib/week-layout';
+import {
+  layoutDay,
+  type CalendarDay,
+  type CalendarException,
+  type CalendarLesson,
+  type CalendarSlot,
+  type WeekData,
+} from '../../../lib/week-layout';
 import { CalendarDialog, type DialogState } from './calendar-dialog';
+import { EXCEPTION_TITLES } from './exception-form';
+import { Toast, useToast } from './ui';
 
 /** Wysokość minuty w siatce (godzina = 72 px). */
 const PX_PER_MINUTE = 1.2;
 /** Kliknięcie w pustą siatkę zaokrąglamy do tylu minut. */
 const SNAP_MINUTES = 15;
-/** Jak długo widać komunikat po akcji. */
-const TOAST_MS = 6000;
 
 export interface CalendarLinks {
   previous: string;
@@ -23,8 +31,6 @@ export interface CalendarLinks {
 }
 
 type View = 'calendar' | 'list';
-
-type Message = { kind: 'ok' | 'error'; text: string };
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const clock = (minutes: number) => `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
@@ -41,19 +47,18 @@ export function WeekCalendar({
   links: CalendarLinks;
 }) {
   const [dialog, setDialog] = useState<DialogState | null>(null);
-  const [message, setMessage] = useState<Message | null>(null);
-
-  useEffect(() => {
-    if (!message) return;
-    const timer = setTimeout(() => setMessage(null), TOAST_MS);
-    return () => clearTimeout(timer);
-  }, [message]);
+  const [message, setMessage] = useToast();
 
   const open = (state: DialogState) => setDialog(state);
   const canBookAt = (date: string, minutes: number) =>
     date > data.now.date || (date === data.now.date && minutes > data.now.minutes);
   const firstOpenDay = data.days.find((d) => !d.isPast)?.date ?? data.now.date;
   const weekIsPast = data.days.every((d) => d.isPast);
+  const handlers: Handlers = {
+    onSlot: (slot) => open({ type: 'slot', slot }),
+    onLesson: (lesson) => open({ type: 'lesson', lesson }),
+    onException: (exception) => open({ type: 'exception', exception }),
+  };
 
   return (
     <section className="calendar" aria-label="Kalendarz">
@@ -88,40 +93,39 @@ export function WeekCalendar({
       </div>
 
       {/* Komunikat po akcji w dymku na dole ekranu: nie przesuwa kalendarza i sam znika. */}
-      <div className="toast-area" aria-live="polite">
-        {message ? (
-          <p className={`toast ${message.kind}`} role="status">
-            {message.text}
-            <button type="button" className="toast-close" onClick={() => setMessage(null)} aria-label="Ukryj komunikat">
-              ✕
-            </button>
-          </p>
-        ) : null}
-      </div>
+      <Toast message={message} onHide={() => setMessage(null)} />
 
       <p className="muted small legend">
         <span className="legend-item">
           <span className="swatch swatch-lesson" /> {data.isStaff ? 'lekcja' : 'Twoja lekcja'}
         </span>
-        <span className="legend-item">
-          <span className="swatch swatch-slot" /> wolny termin
-        </span>
+        {data.isInstructor ? null : (
+          <span className="legend-item">
+            <span className="swatch swatch-slot" /> wolny termin
+          </span>
+        )}
+        {data.isStaff ? (
+          <span className="legend-item">
+            <span className="swatch swatch-off" /> urlop, wolne
+          </span>
+        ) : null}
         <span>
-          {data.isStaff
-            ? view === 'calendar'
-              ? 'Kliknij wolny termin albo puste miejsce, żeby wpisać lekcję. Kliknij lekcję, żeby ją odwołać.'
-              : 'Kliknij wolną godzinę, żeby wpisać lekcję. Kliknij lekcję, żeby ją odwołać.'
-            : 'Kliknij wolny termin, żeby zarezerwować. Kliknij swoją lekcję, żeby ją odwołać.'}
+          {data.isInstructor
+            ? 'Lekcje, które prowadzisz. Kliknij lekcję, żeby zobaczyć szczegóły.'
+            : data.isStaff
+              ? view === 'calendar'
+                ? 'Kliknij puste miejsce, żeby wpisać lekcję, wolne albo dodatkowe godziny. Kliknij lekcję albo wolne, żeby je odwołać.'
+                : 'Kliknij wolną godzinę, żeby wpisać lekcję. Kliknij lekcję albo wolne, żeby je odwołać.'
+              : 'Kliknij wolny termin, żeby zarezerwować. Kliknij swoją lekcję, żeby ją odwołać.'}
         </span>
       </p>
 
       {view === 'calendar' ? (
         <CalendarGrid
           data={data}
-          onSlot={(slot) => open({ type: 'slot', slot })}
-          onLesson={(lesson) => open({ type: 'lesson', lesson })}
+          {...handlers}
           onEmpty={
-            data.isStaff && data.service
+            data.isStaff
               ? (date, minutes) => {
                   if (canBookAt(date, minutes)) open({ type: 'new', date, time: clock(minutes) });
                 }
@@ -129,11 +133,7 @@ export function WeekCalendar({
           }
         />
       ) : (
-        <AgendaList
-          data={data}
-          onSlot={(slot) => open({ type: 'slot', slot })}
-          onLesson={(lesson) => open({ type: 'lesson', lesson })}
-        />
+        <AgendaList data={data} {...handlers} />
       )}
 
       {!weekIsPast && data.service && data.slots.length === 0 ? (
@@ -165,7 +165,14 @@ export function WeekCalendar({
 function dialogKey(state: DialogState): string {
   if (state.type === 'slot') return `slot:${state.slot.key}`;
   if (state.type === 'lesson') return `lesson:${state.lesson.id}`;
+  if (state.type === 'exception') return `exception:${state.exception.key}`;
   return `new:${state.date}:${state.time}`;
+}
+
+interface Handlers {
+  onSlot: (slot: CalendarSlot) => void;
+  onLesson: (lesson: CalendarLesson) => void;
+  onException: (exception: CalendarException) => void;
 }
 
 type GridItem = ({ kind: 'lesson'; lesson: CalendarLesson } | { kind: 'slot'; slot: CalendarSlot }) & {
@@ -175,13 +182,10 @@ type GridItem = ({ kind: 'lesson'; lesson: CalendarLesson } | { kind: 'slot'; sl
 
 function CalendarGrid({
   data,
-  onSlot,
-  onLesson,
   onEmpty,
-}: {
+  ...handlers
+}: Handlers & {
   data: WeekData;
-  onSlot: (slot: CalendarSlot) => void;
-  onLesson: (lesson: CalendarLesson) => void;
   onEmpty?: (date: string, minutes: number) => void;
 }) {
   const { range } = data;
@@ -222,7 +226,7 @@ function CalendarGrid({
           ))}
         </div>
         {data.days.map((day) => (
-          <DayColumn key={day.date} day={day} data={data} onSlot={onSlot} onLesson={onLesson} onEmpty={onEmpty} />
+          <DayColumn key={day.date} day={day} data={data} onEmpty={onEmpty} {...handlers} />
         ))}
       </div>
     </div>
@@ -234,12 +238,11 @@ function DayColumn({
   data,
   onSlot,
   onLesson,
+  onException,
   onEmpty,
-}: {
+}: Handlers & {
   day: CalendarDay;
   data: WeekData;
-  onSlot: (slot: CalendarSlot) => void;
-  onLesson: (lesson: CalendarLesson) => void;
   onEmpty?: (date: string, minutes: number) => void;
 }) {
   const { range } = data;
@@ -251,7 +254,12 @@ function DayColumn({
       .filter((s) => s.date === day.date)
       .map((slot) => ({ kind: 'slot' as const, slot, start: slot.start, end: slot.end })),
   ];
+  // Wolne i dodatkowe godziny to pasy w tle: lekcje i wolne terminy leżą nad nimi.
+  // Przy kilku instruktorach pas jednej osoby nie zasłania dnia: klikalna jest tylko jego etykieta,
+  // a puste miejsce dalej otwiera wpisanie lekcji.
+  const bands = data.exceptions.filter((e) => e.date === day.date && e.end > range.start && e.start < range.end);
   const many = data.instructors.length > 1;
+  const forSchool = data.isStaff || data.isInstructor;
   const clickable = Boolean(onEmpty) && !day.isPast;
 
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -267,6 +275,30 @@ function DayColumn({
       onClick={handleClick}
       aria-label={day.label}
     >
+      {bands.map((band) => {
+        const top = (Math.max(band.start, range.start) - range.start) * PX_PER_MINUTE;
+        const bottom = (Math.min(band.end, range.end) - range.start) * PX_PER_MINUTE;
+        const title = EXCEPTION_TITLES[band.kind];
+        return (
+          <button
+            key={band.key}
+            type="button"
+            className={`cal-band ${band.kind}${many ? ' shared' : ''}`}
+            style={{ top, height: Math.max(18, bottom - top) }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onException(band);
+            }}
+            aria-label={`${title}: ${band.periodLabel}, ${band.instructorName}${band.note ? `, ${band.note}` : ''}`}
+          >
+            <span className="cal-band-label">
+              {title}
+              {many ? ` · ${band.instructorName}` : ''}
+              {band.note ? ` · ${band.note}` : ''}
+            </span>
+          </button>
+        );
+      })}
       {layoutDay(items).map(({ item, column, columns }) => {
         const style: CSSProperties = {
           top: (Math.max(item.start, range.start) - range.start) * PX_PER_MINUTE,
@@ -304,10 +336,10 @@ function DayColumn({
               event.stopPropagation();
               onLesson(lesson);
             }}
-            aria-label={`Lekcja: ${lesson.dateLabel}, ${lesson.timeLabel}, ${data.isStaff ? lesson.clientName : lesson.serviceName}, ${lesson.statusLabel}`}
+            aria-label={`Lekcja: ${lesson.dateLabel}, ${lesson.timeLabel}, ${forSchool ? lesson.clientName : lesson.serviceName}, ${lesson.statusLabel}`}
           >
             <span className="cal-event-time">{lesson.timeLabel}</span>
-            <span className="cal-event-title">{data.isStaff ? lesson.clientName : lesson.serviceName}</span>
+            <span className="cal-event-title">{forSchool ? lesson.clientName : lesson.serviceName}</span>
             {lesson.status !== 'confirmed' ? <span className="cal-event-status">{lesson.statusLabel}</span> : null}
           </button>
         );
@@ -319,34 +351,51 @@ function DayColumn({
   );
 }
 
-function AgendaList({
-  data,
-  onSlot,
-  onLesson,
-}: {
-  data: WeekData;
-  onSlot: (slot: CalendarSlot) => void;
-  onLesson: (lesson: CalendarLesson) => void;
-}) {
+function AgendaList({ data, onSlot, onLesson, onException }: Handlers & { data: WeekData }) {
   const many = data.instructors.length > 1;
+  const forSchool = data.isStaff || data.isInstructor;
   const days = data.days
     .map((day) => ({
       day,
       lessons: data.lessons.filter((l) => l.date === day.date),
       slots: data.slots.filter((s) => s.date === day.date),
+      exceptions: data.exceptions.filter((e) => e.date === day.date),
     }))
-    .filter((d) => d.lessons.length > 0 || d.slots.length > 0);
+    .filter((d) => d.lessons.length > 0 || d.slots.length > 0 || d.exceptions.length > 0);
 
-  if (days.length === 0) return <p className="muted">W tym tygodniu nie ma lekcji ani wolnych terminów.</p>;
+  if (days.length === 0) {
+    return (
+      <p className="muted">
+        {data.isInstructor ? 'W tym tygodniu nie masz lekcji.' : 'W tym tygodniu nie ma lekcji ani wolnych terminów.'}
+      </p>
+    );
+  }
 
   return (
     <div className="agenda">
-      {days.map(({ day, lessons, slots }) => (
+      {days.map(({ day, lessons, slots, exceptions }) => (
         <section key={day.date} className={`agenda-day${day.isToday ? ' today' : ''}`}>
           <h3>
             {day.label}
             {day.isToday ? <span className="badge">dziś</span> : null}
           </h3>
+          {exceptions.length > 0 ? (
+            <ul className="agenda-lessons">
+              {exceptions.map((exception) => (
+                <li key={exception.key}>
+                  <button type="button" className={`agenda-band ${exception.kind}`} onClick={() => onException(exception)}>
+                    <strong>{EXCEPTION_TITLES[exception.kind]}</strong>
+                    <span>{exception.periodLabel}</span>
+                    {many || exception.note ? (
+                      <span className="muted small">
+                        {[many ? exception.instructorName : null, exception.note].filter(Boolean).join(' · ')}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {lessons.length > 0 ? (
             <ul className="agenda-lessons">
               {lessons.map((lesson) => (
@@ -357,9 +406,9 @@ function AgendaList({
                     onClick={() => onLesson(lesson)}
                   >
                     <strong>{lesson.timeLabel}</strong>
-                    <span>{data.isStaff ? lesson.clientName : lesson.serviceName}</span>
+                    <span>{forSchool ? lesson.clientName : lesson.serviceName}</span>
                     <span className="muted small">
-                      {many ? `${lesson.instructorName} · ` : ''}
+                      {many && !data.isInstructor ? `${lesson.instructorName} · ` : ''}
                       {lesson.statusLabel}
                     </span>
                   </button>
@@ -369,7 +418,7 @@ function AgendaList({
           ) : null}
           {slots.length > 0 ? (
             <div className="agenda-slots">
-              <span className="muted small">Wolne:</span>
+              <span className="muted small">Wolne terminy:</span>
               {slots.map((slot) => (
                 <button key={slot.key} type="button" className="slot-chip" onClick={() => onSlot(slot)}>
                   {slot.timeLabel.slice(0, 5)}

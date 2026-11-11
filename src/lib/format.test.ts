@@ -1,6 +1,6 @@
 // Teksty w interfejsie po polsku.
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDay, formatTime, formatWeekRange, lessonsLabel } from './format';
+import { describeWeeklyHours, formatDate, formatDay, formatLocalDay, formatTime, formatWeekRange, lessonsLabel } from './format';
 
 describe('Teksty w interfejsie', () => {
   it('liczba lekcji odmienia się po polsku: 1 lekcja, 2 lekcje, 5 lekcji, 12 lekcji, 22 lekcje', () => {
@@ -24,6 +24,29 @@ describe('Teksty w interfejsie', () => {
     expect(formatWeekRange('2026-11-09', '2026-11-15')).toBe('9–15 listopada 2026');
     expect(formatWeekRange('2026-11-30', '2026-12-06')).toBe('30 listopada – 6 grudnia 2026');
     expect(formatWeekRange('2026-12-28', '2027-01-03')).toBe('28 grudnia 2026 – 3 stycznia 2027');
+  });
+
+  it('godziny pracy w ustawieniach: dni z tymi samymi godzinami są w jednym wierszu, np. pon.–pt. 16:00–21:00', () => {
+    const weekdays = [1, 2, 3, 4, 5].map((weekday) => ({ weekday, start: '16:00', end: '21:00' }));
+    expect(describeWeeklyHours(weekdays)).toEqual(['pon.–pt. 16:00–21:00']);
+    expect(
+      describeWeeklyHours([
+        ...weekdays.filter((r) => r.weekday !== 3),
+        { weekday: 6, start: '13:00', end: '15:00' },
+        { weekday: 6, start: '10:00', end: '12:00' },
+      ]),
+    ).toEqual(['pon.–wt., czw.–pt. 16:00–21:00', 'sob. 10:00–12:00, 13:00–15:00']);
+    expect(
+      describeWeeklyHours([
+        { weekday: 3, start: '16:00', end: '21:00' },
+        { weekday: 1, start: '16:00', end: '21:00' },
+      ]),
+    ).toEqual(['pon., śr. 16:00–21:00']);
+    expect(describeWeeklyHours([])).toEqual([]);
+  });
+
+  it('dzień w ustawieniach ma krótką nazwę dnia tygodnia: pon., 11 stycznia', () => {
+    expect(formatLocalDay('2027-01-11')).toBe('pon., 11 stycznia');
   });
 
   it('termin odwołania po „do” ma datę bez dnia tygodnia: do 11 stycznia', () => {

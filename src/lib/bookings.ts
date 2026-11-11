@@ -151,11 +151,13 @@ async function instructorSlots(
       eb.fn<string | null>('to_char', [eb.ref('validTo'), eb.val('YYYY-MM-DD')]).as('validTo'),
     ])
     .where('instructorId', '=', instructorId)
+    .where('active', '=', true) // wyłączone: zastąpione nowymi godzinami pracy
     .execute();
   const exceptions = await tx
     .selectFrom('availabilityExceptions')
     .select(['kind', 'startsAt', 'endsAt'])
     .where('instructorId', '=', instructorId)
+    .where('active', '=', true) // wyłączone: odwołany urlop albo dodatkowe godziny
     .where('endsAt', '>', rangeStart)
     .where('startsAt', '<', rangeEnd)
     .execute();

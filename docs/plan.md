@@ -16,24 +16,25 @@ Każdy etap to osobny PR. Gdy etap jest gotowy, zaznaczamy go tutaj w tym samym 
 
 - [x] Logowanie linkiem z maila, wybór firmy, połączenie z bazą jako `app_user`, testy na GitHubie.
 
-### Etap 3a. Kalendarz i rezerwacje: w trakcie
+### Etap 3a. Kalendarz i rezerwacje: gotowe (PR #3)
 
 - [x] Wolne terminy z reguł grafiku: lekcje jedna po drugiej, przyklejone do rezerwacji (bez dziur przed nią i po niej).
 - [x] Rezerwacja z kontrolą salda i limitu; odwołanie ze zwrotem lekcji do terminu odwołania.
 - [x] Kalendarz tygodniowy: siatka godzin jak w Google Calendar albo lista dni.
 - [x] Para rezerwuje i odwołuje kliknięciem w kalendarzu.
 - [x] Szkoła wpisuje lekcję dla klienta, także o dowolnej godzinie.
-- [ ] Commit i PR.
+- [x] Commit i PR.
 
-### Etap 3b. Ustawienia grafiku w panelu szkoły: zaplanowane
+### Etap 3b. Ustawienia grafiku w panelu szkoły: gotowe (PR #4)
 
-Do tego czasu te dane wpisuje `npm run db:seed` albo SQL.
+Strona „Ustawienia grafiku” (przycisk nad kalendarzem); wolne i dodatkowe godziny także prosto w kalendarzu.
 
-- [ ] Instruktorzy: dodawanie i wyłączanie.
-- [ ] Stałe godziny pracy instruktora.
-- [ ] Wyjątki: urlop, wolne, dodatkowe godziny.
-- [ ] Reguły grafiku (przerwa, wyprzedzenie, horyzont, termin odwołania…) i usługi (rodzaj i długość lekcji).
-- [ ] Kalendarz instruktora: podgląd jego lekcji.
+- [x] Instruktorzy: dodawanie, zmiana nazwy, wyłączanie; adres e-mail, którym instruktor loguje się do swojego kalendarza.
+- [x] Stałe godziny pracy instruktora, zmieniane od wybranego dnia.
+- [x] Wyjątki: urlop, wolne, dodatkowe godziny (w kalendarzu: kliknięcie w puste miejsce, szary pas wolnego).
+- [x] Reguły grafiku (przerwa, wyprzedzenie, horyzont, termin odwołania…) i usługi (nazwa, długość, ile lekcji zdejmuje).
+- [x] Kalendarz instruktora: podgląd jego lekcji.
+- [x] Commit i PR.
 
 ### Etap 3c. Klienci w panelu szkoły: zaplanowane
 
@@ -44,6 +45,7 @@ Te punkty są w zakresie wersji 1 (panel admina), ale wcześniej nie miały etap
 - [ ] Historia lekcji klienta i ręczna korekta salda z notatką.
 - [ ] Lista osób na minusie.
 - [ ] Oznaczanie nieobecności.
+- [ ] Domyślny limit zaufanego klienta (`default_trusted_credit_limit`) w ustawieniach (dopisane w etapie 3b: jest w bazie, nie ma go jeszcze w panelu).
 
 ### Pierwsze wdrożenie (po etapie 3)
 
@@ -57,6 +59,7 @@ Te punkty są w zakresie wersji 1 (panel admina), ale wcześniej nie miały etap
 - [ ] Webhook Stripe: płatność dopisuje lekcje na konto (najwyżej raz).
 - [ ] Gotówka w panelu: kto przyjął, ile zł, ile lekcji.
 - [ ] Samodzielna rejestracja nowej pary na stronie szkoły (wcześniej bez etapu; pasuje tutaj, bo nowa para płaci za pierwszą lekcję online).
+- [ ] W ustawieniach: cena pojedynczej lekcji w usłudze i czas blokady terminu na płatność (`payment_hold_minutes`) (dopisane w etapie 3b).
 
 ### Etap 5. Przypomnienia i zadania w tle: zaplanowane
 
@@ -64,6 +67,7 @@ Te punkty są w zakresie wersji 1 (panel admina), ale wcześniej nie miały etap
 - [ ] Wygasanie blokad terminu na czas płatności.
 - [ ] Lekcja po swoim końcu zmienia się na „odbytą”.
 - [ ] Para po pierwszej odbytej lekcji staje się stała.
+- [ ] W ustawieniach: kiedy wysłać przypomnienie i włączanie automatycznych zmian statusów (`reminder_hours_before`, `auto_complete_lessons`, `auto_promote_after_first_lesson`) (dopisane w etapie 3b).
 
 ## Na później (po wersji 1)
 
@@ -73,6 +77,8 @@ Te punkty są w zakresie wersji 1 (panel admina), ale wcześniej nie miały etap
 - Ważność pakietów.
 - SMS, synchronizacja z Google Calendar, vouchery, eksport do Excela albo na endpoint.
 - Nadpisywanie reguł grafiku dla instruktora albo usługi.
+- Dostęp do panelu (zauważone w etapie 3b): dodawanie administratorów i odbieranie roli. Wyłączony instruktor albo instruktor bez adresu e-mail zachowuje rolę w firmie, ale nie widzi już żadnych lekcji.
+- Godziny pracy instruktorów w tle kalendarza szkoły (np. szare tło poza godzinami pracy) i zaznaczanie wolnego przeciągnięciem po siatce.
 - Stripe Connect i zakładanie firm przez stronę.
 - Do sprawdzenia przed sprzedażą:
   - z księgową: paragony i kasa fiskalna, zwłaszcza przy gotówce;

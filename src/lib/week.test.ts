@@ -133,7 +133,61 @@ describe('Kalendarz tygodniowy', () => {
     expect(nextWeek?.range).toEqual({ start: 16 * 60, end: 21 * 60 });
   });
 
-  it('sam instruktor (bez profilu klienta) nie ma jeszcze kalendarza', async () => {
+  it('instruktor bez połączonego konta nie ma kalendarza', async () => {
     expect(await loadWeek(db, asInstructor, { week: MONDAY, now: NOW })).toBeNull();
   });
+
+  it('instruktor widzi w kalendarzu tylko lekcje, które prowadzi: bez wolnych terminów i bez odwoływania', async () => {
+    const { basia, ctx } = await instructorWithAccount('Basia');
+    const week = await loadWeek(db, ctx, { week: OTHER_WEEK, now: NOW });
+
+    expect(week?.isInstructor).toBe(true);
+    expect(week?.isStaff).toBe(false);
+    expect(week?.lessons.map((l) => [l.timeLabel, l.clientName, l.instructorName])).toEqual([['17:00–17:45', 'Anna i Piotr', 'Basia']]);
+    expect(week?.lessons[0]?.cancel).toBeNull();
+    expect(week?.slots).toEqual([]);
+    expect([week?.service, week?.services, week?.clients]).toEqual([null, [], []]);
+    expect(week?.upcoming).toMatchObject({ count: 1, nextWeek: OTHER_WEEK });
+    // Siatka bez godzin pracy innych instruktorów: Basia nie ma stałych godzin, więc tylko jej lekcja.
+    expect(week?.range).toEqual({ start: 17 * 60, end: 18 * 60 });
+
+    // Szkoła widzi lekcje obu instruktorów w tym tygodniu.
+    const staffWeek = await loadWeek(db, staff, { week: OTHER_WEEK, now: NOW });
+    expect(staffWeek?.lessons.map((l) => l.instructorName)).toEqual(['Ola', 'Basia']);
+
+    // Wyłączony instruktor nie ma już kalendarza.
+    await owner.query('UPDATE instructors SET active = false WHERE id = $1', [basia]);
+    expect(await loadWeek(db, ctx, { week: OTHER_WEEK, now: NOW })).toBeNull();
+  });
 });
+
+const OTHER_WEEK = '2027-01-25';
+
+/** Instruktor z kontem logowania (rola instruktora) i lekcją w tygodniu OTHER_WEEK; Ola ma w tym tygodniu inną lekcję. */
+async function instructorWithAccount(name: string): Promise<{ basia: string; ctx: FirmContext }> {
+  const orgId = staff.organizationId;
+  const userId = await createUser(owner);
+  await owner.query("INSERT INTO memberships (organization_id, user_id, role) VALUES ($1, $2, 'instructor')", [orgId, userId]);
+  const basia = await createInstructor(owner, orgId, name);
+  await owner.query('UPDATE instructors SET user_id = $1 WHERE id = $2', [userId, basia]);
+  const { rows } = await owner.query<{ id: string }>(
+    'SELECT id FROM services WHERE organization_id = $1 LIMIT 1',
+    [orgId],
+  );
+  const serviceId = rows[0]!.id;
+  const ola = (await owner.query<{ id: string }>("SELECT id FROM instructors WHERE organization_id = $1 AND name = 'Ola'", [orgId])).rows[0]!.id;
+  for (const [instructorId, clientId, start, end] of [
+    [ola, ewa, '16:00', '16:45'],
+    [basia, anna, '17:00', '17:45'],
+  ] as const) {
+    await insertBooking(owner, {
+      orgId,
+      instructorId,
+      clientId,
+      serviceId,
+      start: at(start, OTHER_WEEK).toISOString(),
+      end: at(end, OTHER_WEEK).toISOString(),
+    });
+  }
+  return { basia, ctx: { organizationId: orgId, userId } };
+}
