@@ -1,6 +1,6 @@
 # Model danych
 
-Źródło prawdy: [`db/migrations/0001_init.sql`](../db/migrations/0001_init.sql). Reguły z tego dokumentu sprawdzają testy w [`db/tests`](../db/tests).
+Źródło prawdy: migracje w [`db/migrations`](../db/migrations) — `0001_init.sql` (dane firm) i `0002_logowanie.sql` (logowanie). Reguły z tego dokumentu sprawdzają testy w [`db/tests`](../db/tests) i [`src/lib`](../src/lib).
 
 ```mermaid
 erDiagram
@@ -24,6 +24,8 @@ erDiagram
   payments |o--o{ credit_entries : "plus N"
   bookings |o--o{ credit_entries : "minus i zwrot"
   organizations ||--o{ audit_log : "dziennik"
+  users ||--o{ auth_sessions : "sesje"
+  users ||--o{ auth_accounts : "sposoby logowania"
 ```
 
 ## Tabele
@@ -32,7 +34,10 @@ erDiagram
 |---|---|---|
 | `organizations` | firmy (szkoły, trenerzy): nazwa, adres strony (`slug`), strefa czasowa, waluta, konto Stripe | odczyt bez kontekstu, zmiana tylko własnej; nowe zakłada platforma |
 | `organization_settings` | reguły grafiku, odwołań, płatności i statusów | jedna linijka na firmę; zakresy wartości pilnowane przez bazę |
-| `users` | konto logowania wspólne dla całego systemu | bez RLS; tabele sesji dojdą z biblioteką logowania |
+| `users` | konto logowania wspólne dla całego systemu; czy e-mail jest potwierdzony | bez RLS; e-mail unikalny bez względu na wielkość liter |
+| `auth_sessions` | sesje zalogowanych osób (Better Auth) | globalna, bez RLS; wylogowanie usuwa sesję |
+| `auth_accounts` | sposoby logowania, na przyszłość np. konto Google | globalna, bez RLS; teraz pusta, bo logujemy się tylko linkiem z maila |
+| `auth_verifications` | jednorazowe tokeny z linków w mailach | globalna, bez RLS; tylko skrót tokenu, nigdy token wprost |
 | `memberships` | rola użytkownika w firmie: `owner`, `admin`, `instructor` | użytkownik widzi własne role we wszystkich firmach |
 | `clients` | klient firmy (dla szkoły pierwszego tańca: para), status i limit | limit > 0 tylko dla `trusted`; e-mail unikalny w firmie |
 | `instructors` | instruktorzy | wyłączamy (`active`), nie kasujemy |
@@ -56,15 +61,24 @@ erDiagram
 
 ## Jak aplikacja korzysta z bazy
 
+Aplikacja loguje się rolą `app_user` (`APP_DATABASE_URL`), a dane firmy czyta przez `withTenant()` z [`src/lib/db.ts`](../src/lib/db.ts):
+
+```ts
+const clients = await withTenant(db, { organizationId, userId }, (tx) =>
+  tx.selectFrom('clients').select(['id', 'displayName']).execute(),
+);
+```
+
+To samo w SQL:
+
 ```sql
 BEGIN;
-SET LOCAL ROLE app_user;                                     -- albo połączenie od razu jako użytkownik z rolą app_user
-SELECT set_config('app.organization_id', '<uuid firmy>', true);
-SELECT set_config('app.user_id', '<uuid użytkownika>', true);
--- … zapytania tej firmy …
+SELECT set_config('app.organization_id', '<uuid firmy>', true),
+       set_config('app.user_id', '<uuid użytkownika>', true);
+SELECT id, display_name FROM clients;
 COMMIT;
 ```
 
-- Trzeci argument `true` oznacza, że ustawienie znika po transakcji, więc nie przecieka między użytkownikami przy puli połączeń.
-- Bez ustawionej firmy zapytania o dane firm zwracają zero wierszy.
-- Migracje uruchamia rola właściciela bazy, która nie podlega RLS.
+- Trzeci argument `true` oznacza, że ustawienie znika po transakcji, więc nie przecieka między użytkownikami przy puli połączeń (test: „wybrana firma nie przechodzi na kolejne zapytania z tego samego połączenia”).
+- Bez ustawionej firmy zapytania o dane firm zwracają zero wierszy. Z ustawionym tylko użytkownikiem widać jego role i profile klienta we wszystkich firmach — tak powstaje lista firm po zalogowaniu.
+- Migracje i dane startowe uruchamia właściciel bazy (`DATABASE_URL`), który nie podlega RLS. Aplikacja nie wystartuje z takim kontem.

@@ -15,6 +15,14 @@ export function testDatabaseUrl(): string {
   return url.toString();
 }
 
+/** Baza testowa widziana tak jak przez aplikację: logowanie rolą app_user (z RLS). */
+export function appTestDatabaseUrl(): string {
+  const url = new URL(testDatabaseUrl());
+  url.username = 'app_user';
+  url.password = 'app_user';
+  return url.toString();
+}
+
 export function createPool(): pg.Pool {
   return new pg.Pool({ connectionString: testDatabaseUrl(), max: 5 });
 }

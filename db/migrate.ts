@@ -42,6 +42,23 @@ export async function migrate(databaseUrl: string, dir: string = MIGRATIONS_DIR)
   return appliedNow;
 }
 
+/** Zakłada bazę z adresu, jeśli jeszcze jej nie ma (np. Postgres uruchomiony przed dodaniem POSTGRES_DB). */
+export async function ensureDatabase(databaseUrl: string): Promise<boolean> {
+  const url = new URL(databaseUrl);
+  const name = decodeURIComponent(url.pathname.slice(1));
+  url.pathname = '/postgres';
+  const admin = new pg.Client({ connectionString: url.toString() });
+  await admin.connect();
+  try {
+    const exists = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [name]);
+    if (exists.rowCount) return false;
+    await admin.query(`CREATE DATABASE ${admin.escapeIdentifier(name)}`);
+    return true;
+  } finally {
+    await admin.end();
+  }
+}
+
 // Uruchomienie z linii poleceń.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const url = process.env.DATABASE_URL;
@@ -49,7 +66,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error('Ustaw DATABASE_URL, np. postgres://postgres:postgres@localhost:5433/rezerwacje');
     process.exit(1);
   }
-  migrate(url)
+  ensureDatabase(url)
+    .then((created) => {
+      if (created) console.log('Założono bazę danych.');
+      return migrate(url);
+    })
     .then((applied) => console.log(applied.length ? `Zastosowano: ${applied.join(', ')}` : 'Baza jest aktualna.'))
     .catch((err) => {
       console.error(err.message);

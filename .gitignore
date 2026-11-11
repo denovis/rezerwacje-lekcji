@@ -5,4 +5,6 @@ node_modules/
 coverage/
 dist/
 .next/
+next-env.d.ts
+*.tsbuildinfo
 *.log
