@@ -1,6 +1,6 @@
 # Decyzje projektu
 
-Wersja 0.2 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
+Wersja 0.3 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
 
 ## 1. Produkt
 
@@ -25,7 +25,15 @@ Wersja 0.2 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
 
 - Limit to jedna liczba: o ile saldo może zejść poniżej zera. Nowy i stały mają 0, zaufany domyślnie `default_trusted_credit_limit`.
 - Baza nie pozwala ustawić limitu większego od 0 komuś, kto nie jest zaufany.
-- Rezerwacja przechodzi, jeśli po zdjęciu lekcji saldo ≥ −limit. Sprawdza to aplikacja w transakcji z blokadą wiersza klienta (etap 3).
+- Rezerwacja przechodzi, jeśli po zdjęciu lekcji saldo ≥ −limit. Sprawdza to aplikacja w transakcji z blokadą wiersza klienta (`src/lib/bookings.ts`), więc dwie rezerwacje tej samej pary w tej samej chwili nie zejdą razem poniżej limitu.
+- Nowy klient, który ma już opłacone lekcje na koncie (np. kupił pakiet), rezerwuje jak stały. Bez lekcji na koncie płaci za lekcję online (do etapu 4 dostaje odmowę z informacją o płatności online).
+- Po wyłączeniu `first_lesson_prepaid` nowy klient bez lekcji na koncie dostaje taką samą odmowę jak stały. Lekcja z płatnością na miejscu jest tylko dla zaufanych.
+
+### Kto rezerwuje
+
+- **Klient** rezerwuje dla siebie i tylko wolny termin wyliczony z reguł grafiku.
+- **Szkoła** (właściciel, admin) rezerwuje dla dowolnego klienta i o dowolnej godzinie, także poza godzinami pracy, byle lekcja nie nachodziła na inną. Zasady salda obowiązują tak samo.
+- Rola instruktora na razie nie rezerwuje ani nie odwołuje lekcji.
 
 ### Saldo lekcji to historia wpisów
 
@@ -49,8 +57,10 @@ Wersja 0.2 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
 
 ### Odwołania
 
-- Do `cancel_deadline_hours` przed lekcją: status `cancelled` i lekcja wraca na konto.
+- Do `cancel_deadline_hours` przed lekcją (włącznie z tą chwilą): status `cancelled` i lekcja wraca na konto (wpis `booking_refund`).
 - Po tym terminie: status `late_cancelled` i lekcja przepada.
+- Lekcji, która już się zaczęła, nie można odwołać.
+- Szkoła odwołuje lekcję klienta według tych samych zasad i zapisuje, kto odwołał. Gdy lekcję odwołuje szkoła po terminie, a lekcja ma wrócić na konto, admin dopisuje korektę `adjustment` z notatką.
 - Nieobecność: status `no_show` i lekcja przepada.
 - Lekcja sama zmienia się na `completed` po swoim końcu (ustawienie `auto_complete_lessons`), chyba że admin oznaczy nieobecność.
 
@@ -75,24 +85,31 @@ Długość lekcji ustawia się w usłudze (`services.duration_minutes`), domyśl
 Lekcje jedna po drugiej przy godzinach pracy 16:00–21:00 i lekcjach po 45 minut (sprawdzone skryptem):
 - bez przerwy: 16:00, 16:45, 17:30, 18:15, 19:00 i 19:45; ostatnia kończy się 20:30, a ostatnich 30 minut nie da się zarezerwować, bo nie zmieści się w nich cała lekcja;
 - z przerwą 15 minut: 16:00, 17:00, 18:00, 19:00 i 20:00;
-- po każdej rezerwacji następny termin zaczyna się zaraz po jej końcu (plus przerwa), także gdy admin wpisał lekcję o innej godzinie. Przy lekcji 17:00–17:45 wolne terminy to 16:00, 17:45, 18:30, 19:15 i 20:00.
+- lekcje „przyklejają się” do rezerwacji, także gdy admin wpisał lekcję o innej godzinie: po rezerwacji następny termin zaczyna się zaraz po jej końcu (plus przerwa), a terminy przed nią liczą się wstecz, tak żeby ostatni kończył się tuż przed nią. Przy lekcji 17:00–17:45 wolne terminy to 16:15, 17:45, 18:30, 19:15 i 20:00, a przy lekcji 17:45–18:30: 16:15, 17:00, 18:30, 19:15 i 20:00. Krótki wolny czas zostaje wtedy na brzegu godzin pracy, nie w środku dnia;
+- między dwiema rezerwacjami terminy liczą się od końca wcześniejszej.
 
 Przykład dla `min_gap_minutes` = 60 przy stałej siatce co 30 minut (`back_to_back_slots` wyłączone), sprawdzony skryptem:
 - okno 16:00–21:00, lekcje po 60 minut, rezerwacja 18:00–19:00;
 - znikają 16:30 i 19:30, bo każdy z tych terminów zostawiłby po 30 minut z obu stron;
 - zostają 16:00, 17:00, 19:00 i 20:00.
 
+Wszystkie powyższe przykłady są testami w `src/lib/slots.test.ts`. Doprecyzowania z etapu 3:
+- Wolne terminy wylicza czysta funkcja `freeSlots` (`src/lib/slots.ts`): godziny pracy plus dodatkowe godziny (`extra`), minus wolne i urlopy (`unavailable`), minus rezerwacje z przerwą po nich.
+- Cała lekcja musi zmieścić się w godzinach pracy. Przerwa po ostatniej lekcji dnia może wyjść poza godziny pracy, ale nie może nachodzić na inną rezerwację.
+- Stała siatka (`slot_step_minutes`) liczy się od początku każdego okna dostępności. Rezerwacja wpisana o innej godzinie jej nie przesuwa.
+- `min_gap_minutes`: wolny czas z każdej strony lekcji, do sąsiedniej rezerwacji albo do brzegu godzin pracy, musi wynosić 0 albo co najmniej tyle minut.
+- `compact_days`: w dniu z rezerwacją widać tylko najbliższy termin tuż przed każdą rezerwacją i tuż po niej. Potem działa jeszcze `min_gap_minutes`.
+- `max_advance_days` liczymy w dniach kalendarzowych: cały dzień otwiera się o północy czasu lokalnego firmy.
+
+### Kalendarz w panelu
+
+- Panel firmy to jedna strona z kalendarzem tygodniowym: siatka godzin jak w Google Calendar albo lista dni (przełącznik „Kalendarz / Lista”).
+- Klient widzi saldo, najbliższą lekcję, swoje lekcje i wolne terminy. Rezerwuje kliknięciem w wolny termin i potwierdzeniem w okienku, a odwołuje kliknięciem w swoją lekcję. Strona się nie przeładowuje, a wynik pokazuje dymek na dole ekranu.
+- Szkoła widzi lekcje wszystkich klientów. Wpisuje lekcję kliknięciem w wolny termin albo w puste miejsce w siatce (także poza godzinami pracy) i wybiera klienta w tym samym okienku.
+
 ### Na później (poza wersją 1)
 
-- Lista rezerwowa i otwieranie grafiku partiami.
-- Limit przełożeń na pakiet, ostrzeżenia po późnych odwołaniach, automatyczna utrata statusu zaufanego, potwierdzanie lekcji.
-- Ważność pakietów.
-- SMS, synchronizacja z Google Calendar, vouchery, eksport do Excela albo na endpoint.
-- Nadpisywanie reguł dla instruktora albo usługi.
-- Stripe Connect i zakładanie firm przez stronę.
-- Do sprawdzenia przed sprzedażą:
-  - z księgową: paragony i kasa fiskalna, zwłaszcza przy gotówce;
-  - RODO: umowa powierzenia przetwarzania danych z każdą firmą.
+Lista pomysłów na później jest w [plan.md](plan.md), razem z etapami wersji 1.
 
 ## 3. Technologia
 
@@ -143,8 +160,10 @@ Przykład dla `min_gap_minutes` = 60 przy stałej siatce co 30 minut (`back_to_b
 
 ## 6. Etapy
 
-1. Decyzje, model danych (migracja SQL) i testy bazy — gotowe (PR #1).
-2. **Ten PR:** szkielet Next.js, logowanie linkiem z maila, wybór firmy, połączenie z bazą jako `app_user`, testy na GitHubie.
-3. Kalendarz i rezerwacje. Wyliczanie wolnych terminów to czysta funkcja: dostępność minus rezerwacje i przerwy, potem starty (jedna po drugiej albo co stałą liczbę minut) i reguły. Do tego testy każdej reguły, rezerwacja i odwołanie z historią lekcji.
-4. Płatności: Stripe Checkout, webhook, gotówka w panelu.
-5. Przypomnienia i zadania w tle: wygasanie blokad, oznaczanie lekcji jako odbytych, przejście klienta z nowego na stałego.
+Etapy z listą rzeczy do zrobienia i stanem każdego z nich są w [plan.md](plan.md). W skrócie:
+
+1. Model danych — gotowe (PR #1).
+2. Szkielet aplikacji i logowanie — gotowe (PR #2).
+3. Kalendarz i rezerwacje (3a), ustawienia grafiku w panelu (3b), klienci w panelu (3c).
+4. Płatności.
+5. Przypomnienia i zadania w tle.

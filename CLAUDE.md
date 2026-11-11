@@ -38,4 +38,9 @@ Właściciel pisze w Javie; kod w TypeScript pisze głównie AI, a on pilnuje go
 ## Styl
 
 - Identyfikatory po angielsku; komentarze, dokumentacja, komunikaty i interfejs po polsku.
-- Małe PR, jeden etap z `docs/decyzje.md` na PR.
+- Małe PR, jeden etap z `docs/plan.md` na PR. Po skończeniu etapu zaznacz go w planie w tym samym PR.
+
+## Plan prac
+
+- Lista etapów i pomysłów na później to `docs/plan.md`. Właściciel sprawdza tam, czy coś jest już zaplanowane.
+- Nowy pomysł albo brak zgłoszony przez właściciela dopisz od razu do `docs/plan.md`: do właściwego etapu albo do „Na później”. Gdy czegoś nie da się przypisać do etapu, powiedz o tym.
