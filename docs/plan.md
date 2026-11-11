@@ -16,16 +16,16 @@ Każdy etap to osobny PR. Gdy etap jest gotowy, zaznaczamy go tutaj w tym samym 
 
 - [x] Logowanie linkiem z maila, wybór firmy, połączenie z bazą jako `app_user`, testy na GitHubie.
 
-### Etap 3a. Kalendarz i rezerwacje: w trakcie
+### Etap 3a. Kalendarz i rezerwacje: gotowe (PR #3)
 
 - [x] Wolne terminy z reguł grafiku: lekcje jedna po drugiej, przyklejone do rezerwacji (bez dziur przed nią i po niej).
 - [x] Rezerwacja z kontrolą salda i limitu; odwołanie ze zwrotem lekcji do terminu odwołania.
 - [x] Kalendarz tygodniowy: siatka godzin jak w Google Calendar albo lista dni.
 - [x] Para rezerwuje i odwołuje kliknięciem w kalendarzu.
 - [x] Szkoła wpisuje lekcję dla klienta, także o dowolnej godzinie.
-- [ ] Commit i PR.
+- [x] Commit i PR.
 
-### Etap 3b. Ustawienia grafiku w panelu szkoły: zaplanowane
+### Etap 3b. Ustawienia grafiku w panelu szkoły: w trakcie
 
 Do tego czasu te dane wpisuje `npm run db:seed` albo SQL.
 
