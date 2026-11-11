@@ -1,8 +1,9 @@
 // Odczyty do stron panelu: profil klienta z saldem, lekcje klienta i grafik szkoły.
 // Klient widzi tylko swoje lekcje; listę klientów i cały grafik widzi szkoła (właściciel, admin).
+// Instruktor z kontem logowania widzi lekcje, które sam prowadzi.
 import { actorOf, BookingError, loadFirmRules, type FirmContext } from './bookings';
-import { withTenant, type Database } from './db';
-import type { BookingStatus, ClientStatus, MemberRole } from './db-types';
+import { withTenant, type Database, type Tx } from './db';
+import type { AvailabilityExceptionKind, BookingStatus, ClientStatus, MemberRole } from './db-types';
 
 export interface ClientProfile {
   id: string;
@@ -17,10 +18,24 @@ export interface FirmOverview {
   role: MemberRole | null;
   isStaff: boolean;
   client: ClientProfile | null;
+  /** Aktywny instruktor połączony z kontem zalogowanej osoby (jej własny grafik). */
+  instructor: { id: string; name: string } | null;
   services: { id: string; name: string; durationMinutes: number; creditCost: number }[];
   instructors: { id: string; name: string }[];
   timeZone: string;
   cancelDeadlineHours: number;
+}
+
+/** Aktywny instruktor połączony z kontem zalogowanej osoby (instructors.user_id). */
+async function ownInstructor(tx: Tx, ctx: FirmContext): Promise<{ id: string; name: string } | null> {
+  const row = await tx
+    .selectFrom('instructors')
+    .select(['id', 'name'])
+    .where('organizationId', '=', ctx.organizationId)
+    .where('userId', '=', ctx.userId)
+    .where('active', '=', true)
+    .executeTakeFirst();
+  return row ?? null;
 }
 
 /** Podstawowe dane wybranej firmy z punktu widzenia zalogowanej osoby. */
@@ -40,6 +55,8 @@ export function firmOverview(db: Database, ctx: FirmContext): Promise<FirmOvervi
       .selectFrom('services')
       .select(['id', 'name', 'durationMinutes', 'creditCost'])
       .where('active', '=', true)
+      // Pierwsza dodana usługa jest domyślna w kalendarzu; nowe usługi dochodzą za nią.
+      .orderBy('createdAt')
       .orderBy('name')
       .execute();
     const instructors = await tx
@@ -52,6 +69,7 @@ export function firmOverview(db: Database, ctx: FirmContext): Promise<FirmOvervi
       role: actor.role,
       isStaff: actor.isStaff,
       client: client ? { ...client, balance: client.balance ?? 0 } : null,
+      instructor: await ownInstructor(tx, ctx),
       services,
       instructors,
       timeZone: rules.timeZone,
@@ -79,6 +97,8 @@ export interface BookingRow {
 export interface BookingFilter {
   /** Tylko lekcje tego klienta. Klient zawsze widzi tylko swoje, bez względu na ten parametr. */
   clientId?: string;
+  /** Lekcje, które prowadzi zalogowana osoba jako instruktor (pusta lista, gdy nie jest instruktorem). */
+  asInstructor?: boolean;
   /** Lekcje zaczynające się od tej chwili (włącznie) … */
   from: Date;
   /** … i przed tą chwilą. */
@@ -89,12 +109,16 @@ export interface BookingFilter {
 
 const VISIBLE_STATUSES: BookingStatus[] = ['pending_payment', 'confirmed', 'completed', 'no_show', 'cancelled', 'late_cancelled'];
 
-/** Lekcje od najwcześniejszej: dla klienta jego własne, dla szkoły wszystkie (albo wybranego klienta). */
+/**
+ * Lekcje od najwcześniejszej: dla klienta jego własne, dla szkoły wszystkie (albo wybranego klienta),
+ * a z asInstructor lekcje, które prowadzi zalogowana osoba.
+ */
 export function listBookings(db: Database, ctx: FirmContext, filter: BookingFilter): Promise<BookingRow[]> {
   return withTenant(db, ctx, async (tx) => {
     const actor = await actorOf(tx, ctx);
-    const clientId = actor.isStaff ? filter.clientId : actor.ownClientId;
-    if (!actor.isStaff && !clientId) return [];
+    const instructor = filter.asInstructor ? await ownInstructor(tx, ctx) : null;
+    const clientId = filter.asInstructor ? undefined : actor.isStaff ? filter.clientId : actor.ownClientId;
+    if (filter.asInstructor ? !instructor : !actor.isStaff && !clientId) return [];
 
     let query = tx
       .selectFrom('bookings as b')
@@ -115,7 +139,36 @@ export function listBookings(db: Database, ctx: FirmContext, filter: BookingFilt
       .where('b.status', 'in', filter.statuses ?? VISIBLE_STATUSES);
     if (filter.to) query = query.where('b.startsAt', '<', filter.to);
     if (clientId) query = query.where('b.clientId', '=', clientId);
+    if (instructor) query = query.where('b.instructorId', '=', instructor.id);
     return query.orderBy('b.startsAt').orderBy('i.name').execute();
+  });
+}
+
+export interface ExceptionRow {
+  id: string;
+  kind: AvailabilityExceptionKind;
+  instructorId: string;
+  instructorName: string;
+  startsAt: Date;
+  endsAt: Date;
+  note: string | null;
+}
+
+/** Aktywne urlopy, wolne i dodatkowe godziny aktywnych instruktorów w podanym czasie (tylko dla szkoły). */
+export function listExceptions(db: Database, ctx: FirmContext, range: { from: Date; to: Date }): Promise<ExceptionRow[]> {
+  return withTenant(db, ctx, async (tx) => {
+    const actor = await actorOf(tx, ctx);
+    if (!actor.isStaff) throw new BookingError('not_allowed');
+    return tx
+      .selectFrom('availabilityExceptions as e')
+      .innerJoin('instructors as i', 'i.id', 'e.instructorId')
+      .select(['e.id', 'e.kind', 'e.instructorId', 'i.name as instructorName', 'e.startsAt', 'e.endsAt', 'e.note'])
+      .where('e.active', '=', true)
+      .where('i.active', '=', true)
+      .where('e.endsAt', '>', range.from)
+      .where('e.startsAt', '<', range.to)
+      .orderBy('e.startsAt')
+      .execute();
   });
 }
 

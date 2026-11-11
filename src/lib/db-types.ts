@@ -85,6 +85,9 @@ export interface AuthVerifications {
 }
 
 export interface AvailabilityExceptions {
+  active: Generated<boolean>;
+  createdAt: Generated<Timestamp>;
+  createdBy: string | null;
   endsAt: Timestamp;
   id: Generated<string>;
   instructorId: string;
@@ -95,6 +98,8 @@ export interface AvailabilityExceptions {
 }
 
 export interface AvailabilityRules {
+  active: Generated<boolean>;
+  createdAt: Generated<Timestamp>;
   endTime: string;
   id: Generated<string>;
   instructorId: string;

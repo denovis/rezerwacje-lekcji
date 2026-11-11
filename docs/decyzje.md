@@ -1,6 +1,6 @@
 # Decyzje projektu
 
-Wersja 0.3 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
+Wersja 0.4 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
 
 ## 1. Produkt
 
@@ -33,7 +33,7 @@ Wersja 0.3 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
 
 - **Klient** rezerwuje dla siebie i tylko wolny termin wyliczony z reguł grafiku.
 - **Szkoła** (właściciel, admin) rezerwuje dla dowolnego klienta i o dowolnej godzinie, także poza godzinami pracy, byle lekcja nie nachodziła na inną. Zasady salda obowiązują tak samo.
-- Rola instruktora na razie nie rezerwuje ani nie odwołuje lekcji.
+- Rola instruktora na razie nie rezerwuje ani nie odwołuje lekcji. Widzi tylko lekcje, które sam prowadzi (etap 3b).
 
 ### Saldo lekcji to historia wpisów
 
@@ -106,6 +106,33 @@ Wszystkie powyższe przykłady są testami w `src/lib/slots.test.ts`. Doprecyzow
 - Panel firmy to jedna strona z kalendarzem tygodniowym: siatka godzin jak w Google Calendar albo lista dni (przełącznik „Kalendarz / Lista”).
 - Klient widzi saldo, najbliższą lekcję, swoje lekcje i wolne terminy. Rezerwuje kliknięciem w wolny termin i potwierdzeniem w okienku, a odwołuje kliknięciem w swoją lekcję. Strona się nie przeładowuje, a wynik pokazuje dymek na dole ekranu.
 - Szkoła widzi lekcje wszystkich klientów. Wpisuje lekcję kliknięciem w wolny termin albo w puste miejsce w siatce (także poza godzinami pracy) i wybiera klienta w tym samym okienku.
+- W tym samym okienku szkoła przełącza „Lekcja / Wolne / Dodatkowe godziny” i wpisuje urlop, wolne albo dodatkowe godziny instruktora. Wolne widać w siatce jako szary pas, a dodatkowe godziny jako pas z kreską z boku. Kliknięcie pasa pokazuje szczegóły i pozwala go odwołać. Gdy szkoła ma kilku instruktorów, klikalna jest tylko etykieta pasa, żeby wolne jednej osoby nie zasłaniało dnia pozostałym.
+- Instruktor z kontem logowania (adres e-mail wpisany przy instruktorze) widzi ten sam kalendarz tylko ze swoimi lekcjami, tylko do podglądu: bez wolnych terminów, rezerwacji i odwołań. Siatka obejmuje jego godziny pracy i lekcje. Osoba, która jest w firmie i klientem, i instruktorem, widzi kalendarz klienta.
+
+### Ustawienia grafiku w panelu (etap 3b)
+
+Szkoła (właściciel, admin) ustawia grafik na osobnej stronie „Ustawienia grafiku” (przycisk nad kalendarzem). Strona ma trzy części: instruktorzy z godzinami pracy i wolnym, reguły grafiku i usługi. Zmiany robi się w okienkach na miejscu, a wynik pokazuje dymek na dole ekranu. Inne osoby wracają z tej strony do kalendarza. Ustawienia zmieniają się tylko przez `src/lib/schedule-setup.ts`, a każda zmiana trafia do dziennika (`audit_log`).
+
+- **Instruktorzy:** dodawanie, zmiana nazwy, wyłączanie i ponowne włączanie.
+  - Wyłączony instruktor znika z grafiku. Jego zaplanowane lekcje zostają w kalendarzu, a okienko podaje ich liczbę, żeby szkoła mogła je odwołać.
+  - Adres e-mail przy instruktorze jest opcjonalny. Daje konto logowania (to samo, jeśli adres jest już w systemie) i rolę instruktora w firmie, chyba że osoba ma już inną rolę, np. właściciel, który sam uczy. Jedno konto to najwyżej jeden instruktor w firmie (pilnuje baza).
+  - Po usunięciu adresu albo wyłączeniu instruktora rola w firmie zostaje (nic nie kasujemy), ale osoba nie widzi już żadnych lekcji. Odbieranie ról jest w planie na później.
+- **Stałe godziny pracy** zmieniają się „od dnia”: od dziś albo od dnia w przyszłości, nigdy wstecz.
+  - Godziny sprzed tego dnia dostają `valid_to` = dzień wcześniej, a godziny zaplanowane od tego dnia lub później zastępują nowe (stare dostają `active = false`).
+  - W jednym dniu może być kilka odcinków (np. 10:00–12:00 i 16:00–21:00), ale nie mogą na siebie nachodzić; stykać się mogą.
+  - Pusta lista godzin oznacza, że od tego dnia instruktor nie ma stałych godzin pracy.
+  - Zaznaczenie dnia w okienku kopiuje godziny z najbliższego wcześniejszego dnia pracy, żeby nie wpisywać ich od nowa.
+- **Wolne i dodatkowe godziny** (`availability_exceptions`): całe dni (urlop) albo godziny w jednym dniu albo na przełomie dni.
+  - Całe dni trwają od północy pierwszego dnia do północy po ostatnim dniu czasu lokalnego firmy.
+  - Wolne nie odwołuje lekcji: lekcje w tym czasie zostają, a komunikat podaje ich liczbę. Szkoła odwołuje je sama według zwykłych zasad.
+  - Wpis musi się kończyć w przyszłości i trwać najwyżej rok. Odwołany wpis zostaje w bazie z `active = false`.
+- **Reguły grafiku** w panelu: `back_to_back_slots`, `slot_step_minutes`, `buffer_minutes`, `min_gap_minutes`, `compact_days`, `min_notice_minutes` (w panelu w godzinach), `max_advance_days`, `cancel_deadline_hours` i `first_lesson_prepaid`. Wolne terminy liczą się według nich od razu; zarezerwowane lekcje zostają bez zmian.
+  - Zakresy: lekcje co 5–240 min, przerwa 0–240 min, najkrótsza dziura 0–600 min, wyprzedzenie 0–720 h, horyzont 1–730 dni, termin odwołania 0–720 h.
+  - Ustawienia przypomnień, płatności i automatycznych statusów dojdą do panelu w etapach 4 i 5, a domyślny limit zaufanego w etapie 3c (`plan.md`).
+- **Usługi:** nazwa, długość (5–600 min), ile lekcji zdejmuje z konta (1–10), wyłączanie i włączanie.
+  - Nowa długość i koszt dotyczą nowych rezerwacji; zarezerwowane lekcje zostają bez zmian.
+  - Ostatniej aktywnej usługi nie można wyłączyć, bo nikt nie mógłby zarezerwować lekcji.
+  - Domyślna usługa w kalendarzu to pierwsza dodana; kolejne usługi są w kolejności dodania.
 
 ### Na później (poza wersją 1)
 
@@ -143,7 +170,7 @@ Lista pomysłów na później jest w [plan.md](plan.md), razem z etapami wersji 
 - **Konta:** `users` to konto logowania wspólne dla całego systemu. Rola w firmie siedzi w `memberships` (właściciel, admin, instruktor). Klient to osobny rekord w `clients`, z kontem albo bez.
 - **Co widzi zalogowany użytkownik:** swoje członkostwa i profile klienta we wszystkich firmach, ale tylko do odczytu. Dzięki temu po zalogowaniu wybiera firmę.
 - **Tabela `organizations`:** można ją czytać bez kontekstu (publiczna strona rezerwacji po adresie). Nowe firmy zakłada platforma, nie aplikacja.
-- **Nic nie kasujemy:** instruktorzy, usługi i pakiety mają flagę `active`, a historia płatności i lekcji zostaje. Wyjątek: sesje i zużyte tokeny logowania, bo to dane techniczne.
+- **Nic nie kasujemy:** instruktorzy, usługi, pakiety, godziny pracy i wyjątki (urlop, dodatkowe godziny) mają flagę `active`, a historia płatności i lekcji zostaje. Wyjątek: sesje i zużyte tokeny logowania, bo to dane techniczne.
 - **Czas:**
   - rezerwacje są zapisane jako `timestamptz`;
   - stałe godziny pracy są w czasie lokalnym firmy (`organizations.timezone`, domyślnie Europe/Warsaw);
@@ -164,6 +191,6 @@ Etapy z listą rzeczy do zrobienia i stanem każdego z nich są w [plan.md](plan
 
 1. Model danych — gotowe (PR #1).
 2. Szkielet aplikacji i logowanie — gotowe (PR #2).
-3. Kalendarz i rezerwacje (3a), ustawienia grafiku w panelu (3b), klienci w panelu (3c).
+3. Kalendarz i rezerwacje (3a) — gotowe (PR #3), ustawienia grafiku w panelu (3b) — gotowe (PR #4), klienci w panelu (3c).
 4. Płatności.
 5. Przypomnienia i zadania w tle.

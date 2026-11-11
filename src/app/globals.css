@@ -13,6 +13,8 @@
   --danger: #a12828;
   --success: #2f7a43;
   --now: #d93a3a;
+  --off: #ece8e2;
+  --off-stripe: #e2ddd5;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -33,6 +35,8 @@
     --danger: #f08a8a;
     --success: #8fd19e;
     --now: #ff6b6b;
+    --off: #2a2622;
+    --off-stripe: #332e29;
   }
 }
 
@@ -680,13 +684,390 @@ a {
   margin: 12px 0;
 }
 
-.form-grid label {
+.form-grid label,
+.form-grid input {
   margin: 0;
 }
 
 .form-grid .span-2 {
   grid-column: 1 / -1;
   margin: 0;
+}
+
+/* Pola formularzy w ustawieniach i okienkach. */
+input[type='text'],
+input[type='number'] {
+  font: inherit;
+  color: inherit;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 100%;
+}
+
+input:disabled {
+  opacity: 0.55;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.check label {
+  margin: 0;
+}
+
+.form-label {
+  font-weight: 600;
+}
+
+.time-range,
+.unit-input {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.unit-input input {
+  width: 92px;
+}
+
+button.compact {
+  padding: 6px 12px;
+}
+
+button.link-button.accent {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+button.danger-outline {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* Przełącznik w okienku: Lekcja / Wolne / Dodatkowe godziny. */
+.segmented button {
+  flex: 1;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--border);
+}
+
+.segmented button[aria-selected='true'] {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.dialog-kinds {
+  display: flex;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+/* Wolne i dodatkowe godziny w kalendarzu: pasy w tle dnia. */
+.swatch-off {
+  background: repeating-linear-gradient(135deg, var(--off) 0 3px, var(--off-stripe) 3px 6px);
+  border: 1px solid var(--border);
+}
+
+.cal-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 0;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  text-align: left;
+  color: var(--muted);
+  overflow: hidden;
+}
+
+.cal-band.unavailable {
+  background: repeating-linear-gradient(135deg, var(--off) 0 6px, var(--off-stripe) 6px 12px);
+}
+
+.cal-band.extra {
+  background: transparent;
+  border-left: 3px solid var(--accent);
+  color: var(--accent);
+}
+
+.cal-band:hover,
+.cal-band:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--muted);
+}
+
+/* Kilku instruktorów: pas nie przechwytuje kliknięć w puste miejsce, tylko jego etykieta. */
+.cal-band.shared {
+  pointer-events: none;
+}
+
+.cal-band.shared .cal-band-label {
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.cal-band-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.agenda-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  width: 100%;
+  margin-bottom: 6px;
+  text-align: left;
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: repeating-linear-gradient(135deg, var(--off) 0 6px, var(--off-stripe) 6px 12px);
+}
+
+.agenda-band.extra {
+  background: transparent;
+  border-left: 3px solid var(--accent);
+}
+
+/* Strona ustawień grafiku. */
+.settings-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: -8px 0 8px;
+}
+
+.settings-section {
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  scroll-margin-top: 16px;
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+.setting-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 12px;
+}
+
+.setting-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.setting-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setting-card-head h3 {
+  margin: 0;
+}
+
+.setting-card-head p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.setting-block h4 {
+  margin: 14px 0 4px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.setting-block p {
+  margin: 0 0 6px;
+}
+
+.hours-lines {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 6px;
+}
+
+.planned {
+  color: var(--accent);
+}
+
+.row-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.row-button {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.row-button:hover,
+.row-button:focus-visible {
+  background: var(--bg);
+}
+
+.band-row.unavailable {
+  border-left: 6px solid var(--off-stripe);
+}
+
+.band-row.extra {
+  border-left: 6px solid var(--accent);
+}
+
+.inactive-list h3 {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* Godziny pracy w okienku: dzień i jego odcinki. */
+.hours-grid {
+  margin: 8px 0 12px;
+}
+
+.hours-day {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  align-items: start;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--grid-line);
+}
+
+/* Wysokość wiersza jak pola godziny: zaznaczenie dnia nie przesuwa kolejnych wierszy. */
+.hours-day .check {
+  min-height: 42px;
+}
+
+.hours-ranges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 42px;
+  justify-content: center;
+}
+
+.hours-ranges input[type='time'] {
+  height: 42px;
+}
+
+/* Reguły grafiku. */
+.rules-form fieldset {
+  margin: 0 0 16px;
+  padding: 8px 16px 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.rules-form legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.rule-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 300px) auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--grid-line);
+}
+
+.rule-row:last-child {
+  border-bottom: 0;
+}
+
+.rule-row > label {
+  margin: 0;
+}
+
+.rule-row > .check,
+.rule-row > .hint {
+  grid-column: 1 / -1;
+}
+
+.rule-row.disabled > label {
+  color: var(--muted);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.form-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+@media (max-width: 600px) {
+  .rule-row {
+    grid-template-columns: 1fr;
+  }
+
+  .rules-form fieldset {
+    padding: 4px 12px;
+  }
 }
 
 @media (max-width: 600px) {

@@ -1,15 +1,20 @@
 'use client';
-// Okienko kalendarza: rezerwacja wolnego terminu, wpisanie lekcji o dowolnej godzinie (szkoła)
-// i szczegóły lekcji z odwołaniem. Wynik akcji pokazujemy na miejscu, bez przechodzenia na inną stronę.
-import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
+// Okienko kalendarza: rezerwacja wolnego terminu, wpisanie lekcji o dowolnej godzinie (szkoła),
+// wolne i dodatkowe godziny instruktora (szkoła) oraz szczegóły lekcji z odwołaniem.
+// Wynik akcji pokazujemy na miejscu, bez przechodzenia na inną stronę.
+import { useState } from 'react';
 import { lessonsLabel } from '../../../lib/format';
-import type { CalendarLesson, CalendarSlot, WeekData } from '../../../lib/week-layout';
-import { bookAction, cancelAction, type ActionResult } from './actions';
+import type { CalendarException, CalendarLesson, CalendarSlot, WeekData } from '../../../lib/week-layout';
+import { bookAction, cancelAction } from './actions';
+import { EXCEPTION_TITLES, ExceptionDetails, ExceptionForm, exceptionAddedMessage, type ExceptionKind } from './exception-form';
+import { addExceptionAction, cancelExceptionAction } from './setup-actions';
+import { Modal, useAction } from './ui';
 
 export type DialogState =
   | { type: 'slot'; slot: CalendarSlot }
   | { type: 'new'; date: string; time: string }
-  | { type: 'lesson'; lesson: CalendarLesson };
+  | { type: 'lesson'; lesson: CalendarLesson }
+  | { type: 'exception'; exception: CalendarException };
 
 interface Props {
   state: DialogState;
@@ -20,77 +25,104 @@ interface Props {
   onDone: (message: string) => void;
 }
 
+/** Co szkoła wpisuje po kliknięciu w puste miejsce: lekcję, wolne albo dodatkowe godziny. */
+type NewKind = 'lesson' | ExceptionKind;
+
+const NEW_KINDS: { kind: NewKind; label: string }[] = [
+  { kind: 'lesson', label: 'Lekcja' },
+  { kind: 'unavailable', label: EXCEPTION_TITLES.unavailable },
+  { kind: 'extra', label: EXCEPTION_TITLES.extra },
+];
+
 export function CalendarDialog({ state, data, slug, onClose, onDone }: Props) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { pending, error, run } = useAction();
+  const [newKind, setNewKind] = useState<NewKind>('lesson');
 
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal();
-  }, []);
-
-  const run = (action: () => Promise<ActionResult>, success: (result: ActionResult & { ok: true }) => string) => {
-    setError(null);
-    startTransition(async () => {
-      const result = await action();
-      if (result.ok) {
-        ref.current?.close();
-        onDone(success(result));
-      } else {
-        setError(result.error);
-      }
-    });
-  };
-
-  let body: ReactNode;
+  let body;
   if (state.type === 'lesson') {
     const cancel = () =>
       run(
         () => cancelAction({ slug, bookingId: state.lesson.id }),
         (result) =>
-          result.refunded
-            ? `Lekcja odwołana i wróciła na konto${data.isStaff ? ' klienta' : ''}.`
-            : 'Lekcja odwołana po terminie, więc przepada.',
+          onDone(
+            result.refunded
+              ? `Lekcja odwołana i wróciła na konto${data.isStaff ? ' klienta' : ''}.`
+              : 'Lekcja odwołana po terminie, więc przepada.',
+          ),
       );
     body = <LessonDetails lesson={state.lesson} data={data} pending={pending} onCancel={cancel} />;
-  } else {
+  } else if (state.type === 'exception') {
+    const exception = state.exception;
     body = (
-      <BookingForm
-        state={state}
-        data={data}
+      <ExceptionDetails
+        kind={exception.kind}
+        periodLabel={exception.periodLabel}
+        instructorName={exception.instructorName}
+        note={exception.note}
         pending={pending}
-        onBook={(input, summary) =>
-          run(() => bookAction({ slug, serviceId: data.service?.id ?? '', ...input }), () => `Zarezerwowano: ${summary}.`)
+        onCancel={() =>
+          run(
+            () => cancelExceptionAction({ slug, exceptionId: exception.id }),
+            () => onDone(`Odwołano: ${EXCEPTION_TITLES[exception.kind].toLowerCase()}, ${exception.periodLabel}.`),
+          )
         }
       />
+    );
+  } else {
+    const kinds = state.type === 'new' && data.isStaff;
+    body = (
+      <>
+        {kinds ? (
+          <div className="segmented dialog-kinds" role="tablist" aria-label="Co wpisać">
+            {NEW_KINDS.map(({ kind, label }) => (
+              <button
+                key={kind}
+                type="button"
+                role="tab"
+                aria-selected={newKind === kind}
+                onClick={() => setNewKind(kind)}
+                disabled={pending}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {state.type === 'new' && newKind !== 'lesson' ? (
+          <>
+            <h2>{newKind === 'unavailable' ? 'Wolne instruktora' : 'Dodatkowe godziny pracy'}</h2>
+            <ExceptionForm
+              key={newKind}
+              kind={newKind}
+              instructors={data.instructors}
+              defaults={{ instructorId: data.instructors[0]?.id ?? '', date: state.date, time: state.time }}
+              pending={pending}
+              onSubmit={(payload, summary) =>
+                run(
+                  () => addExceptionAction({ slug, ...payload }),
+                  (result) => onDone(exceptionAddedMessage(payload.kind, summary, result.lessonsInside ?? 0)),
+                )
+              }
+            />
+          </>
+        ) : (
+          <BookingForm
+            state={state}
+            data={data}
+            pending={pending}
+            onBook={(input, summary) =>
+              run(() => bookAction({ slug, serviceId: data.service?.id ?? '', ...input }), () => onDone(`Zarezerwowano: ${summary}.`))
+            }
+          />
+        )}
+      </>
     );
   }
 
   return (
-    <dialog
-      ref={ref}
-      className="modal"
-      onClose={onClose}
-      onClick={(event) => {
-        // Kliknięcie w tło zamyka okienko.
-        if (event.target === ref.current && !pending) ref.current.close();
-      }}
-    >
-      <div className="modal-body">
-        {body}
-        {error ? (
-          <p className="alert" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <p className="modal-actions-secondary">
-          <button type="button" className="link-button" onClick={() => ref.current?.close()} disabled={pending}>
-            Zamknij
-          </button>
-        </p>
-      </div>
-    </dialog>
+    <Modal onClose={onClose} pending={pending} error={error}>
+      {body}
+    </Modal>
   );
 }
 
@@ -105,15 +137,18 @@ function LessonDetails({
   pending: boolean;
   onCancel: () => void;
 }) {
+  // Szkoła i instruktor widzą parę, klient rodzaj lekcji.
+  const forSchool = data.isStaff || data.isInstructor;
   return (
     <>
-      <h2>{data.isStaff ? lesson.clientName : lesson.serviceName}</h2>
+      <h2>{forSchool ? lesson.clientName : lesson.serviceName}</h2>
       <p>
         <strong className="capitalize">{lesson.dateLabel}</strong>, {lesson.timeLabel}
       </p>
       <p className="muted">
-        {data.isStaff ? `${lesson.serviceName} · ` : ''}
-        {lesson.instructorName} · {lesson.statusLabel}
+        {forSchool ? `${lesson.serviceName} · ` : ''}
+        {data.isInstructor ? '' : `${lesson.instructorName} · `}
+        {lesson.statusLabel}
       </p>
       {lesson.cancel ? (
         <div className="modal-actions">
@@ -126,6 +161,8 @@ function LessonDetails({
             {pending ? 'Odwołuję…' : lesson.cancel.refundable ? 'Odwołaj lekcję' : 'Odwołaj (lekcja przepadnie)'}
           </button>
         </div>
+      ) : data.isInstructor && lesson.status === 'confirmed' ? (
+        <p className="small muted">Lekcję odwołuje para albo szkoła.</p>
       ) : null}
     </>
   );
@@ -145,7 +182,7 @@ function BookingForm({
   pending,
   onBook,
 }: {
-  state: Exclude<DialogState, { type: 'lesson' }>;
+  state: Extract<DialogState, { type: 'slot' | 'new' }>;
   data: WeekData;
   pending: boolean;
   onBook: (input: BookPayload, summary: string) => void;

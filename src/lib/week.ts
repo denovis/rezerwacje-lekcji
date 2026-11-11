@@ -1,8 +1,19 @@
 // Tydzień w kalendarzu panelu: lekcje, wolne terminy i zakres godzin, w czasie lokalnym firmy.
-// Klient widzi swoje lekcje i wolne terminy; szkoła (właściciel, admin) lekcje wszystkich klientów.
+// Klient widzi swoje lekcje i wolne terminy; szkoła (właściciel, admin) lekcje wszystkich klientów,
+// a sam instruktor lekcje, które prowadzi.
+import { sql } from 'kysely';
 import { BLOCKING_STATUSES, cancelDeadline, listFreeSlots, type FirmContext, type OpenSlot } from './bookings';
-import { firmOverview, listBookings, listClients, type BookingRow, type ClientListItem } from './calendar';
+import {
+  firmOverview,
+  listBookings,
+  listClients,
+  listExceptions,
+  type BookingRow,
+  type ClientListItem,
+  type ExceptionRow,
+} from './calendar';
 import { withTenant, type Database } from './db';
+import type { BookingStatus } from './db-types';
 import {
   BOOKING_STATUS_LABELS,
   CLIENT_STATUS_LABELS,
@@ -14,7 +25,15 @@ import {
   lessonsLabel,
 } from './format';
 import { addDays, isLocalDate, isoWeekday, localDateOf, localTimeOf, localToInstant, timeToMinutes } from './local-time';
-import { gridRange, type CalendarLesson, type CalendarSlot, type Timed, type WeekData } from './week-layout';
+import { periodLabel } from './schedule-setup';
+import {
+  gridRange,
+  type CalendarException,
+  type CalendarLesson,
+  type CalendarSlot,
+  type Timed,
+  type WeekData,
+} from './week-layout';
 
 const FULL_DAY = 24 * 60;
 
@@ -39,39 +58,47 @@ export interface WeekQuery {
 }
 
 /**
- * Dane tygodnia do kalendarza. Null, gdy zalogowana osoba nie jest ani klientem, ani szkołą
- * (np. sam instruktor — jego grafik będzie w kolejnej wersji).
+ * Dane tygodnia do kalendarza: dla szkoły cały grafik, dla klienta jego lekcje i wolne terminy,
+ * a dla samego instruktora (bez profilu klienta) lekcje, które prowadzi — tylko do podglądu.
+ * Null, gdy zalogowana osoba nie jest ani szkołą, ani klientem, ani aktywnym instruktorem z kontem.
  */
 export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery = {}): Promise<WeekData | null> {
   const now = query.now ?? new Date();
   const overview = await firmOverview(db, ctx);
-  if (!overview.isStaff && !overview.client) return null;
+  const asInstructor = !overview.isStaff && !overview.client && overview.instructor !== null;
+  if (!overview.isStaff && !overview.client && !asInstructor) return null;
 
   const timeZone = overview.timeZone;
   const today = localDateOf(now.getTime(), timeZone);
   const weekStart = mondayOf(query.week && isLocalDate(query.week) ? query.week : today);
   const weekEnd = addDays(weekStart, 6);
-  const service = overview.services.find((s) => s.id === query.serviceId) ?? overview.services[0] ?? null;
+  // Instruktor nie rezerwuje, więc nie widzi wolnych terminów ani wyboru usługi.
+  const services = asInstructor ? [] : overview.services;
+  const service = services.find((s) => s.id === query.serviceId) ?? services[0] ?? null;
   const clientId = overview.client?.id;
+  const upcomingStatuses: BookingStatus[] = ['pending_payment', 'confirmed'];
 
-  const [bookings, openSlots, clients, upcoming, workHours] = await Promise.all([
-    listBookings(db, ctx, {
-      clientId: overview.isStaff ? undefined : clientId,
-      from: new Date(localToInstant(weekStart, 0, timeZone)),
-      to: new Date(localToInstant(addDays(weekEnd, 1), 0, timeZone)),
-    }),
+  const weekRange = {
+    from: new Date(localToInstant(weekStart, 0, timeZone)),
+    to: new Date(localToInstant(addDays(weekEnd, 1), 0, timeZone)),
+  };
+
+  const [bookings, openSlots, clients, upcoming, workHours, exceptionRows] = await Promise.all([
+    listBookings(db, ctx, { clientId: overview.isStaff ? undefined : clientId, asInstructor, ...weekRange }),
     service ? listFreeSlots(db, ctx, { serviceId: service.id, from: weekStart, to: weekEnd, now }) : Promise.resolve<OpenSlot[]>([]),
     overview.isStaff ? listClients(db, ctx) : Promise.resolve<ClientListItem[]>([]),
-    clientId
-      ? listBookings(db, ctx, { clientId, from: now, statuses: ['pending_payment', 'confirmed'] })
+    clientId || asInstructor
+      ? listBookings(db, ctx, { clientId, asInstructor, from: now, statuses: upcomingStatuses })
       : Promise.resolve<BookingRow[]>([]),
-    workHoursRange(db, ctx),
+    // Instruktor widzi siatkę dopasowaną do swoich godzin pracy.
+    workHoursRange(db, ctx, today, asInstructor ? overview.instructor?.id : undefined),
+    overview.isStaff ? listExceptions(db, ctx, weekRange) : Promise.resolve<ExceptionRow[]>([]),
   ]);
 
   const lessons = bookings.map((booking): CalendarLesson => {
     const date = localDateOf(booking.startsAt.getTime(), timeZone);
     const deadline = cancelDeadline(booking.startsAt, overview.cancelDeadlineHours);
-    const cancellable = booking.status === 'confirmed' && booking.startsAt > now;
+    const cancellable = !asInstructor && booking.status === 'confirmed' && booking.startsAt > now;
     return {
       id: booking.id,
       date,
@@ -109,6 +136,30 @@ export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery 
     };
   });
 
+  // Wpis na kilka dni (np. urlop) to osobny blok w każdym dniu tygodnia, którego dotyczy.
+  const exceptions: CalendarException[] = [];
+  for (const row of exceptionRows) {
+    for (let date = weekStart; date <= weekEnd; date = addDays(date, 1)) {
+      const dayStart = localToInstant(date, 0, timeZone);
+      const dayEnd = localToInstant(addDays(date, 1), 0, timeZone);
+      const from = Math.max(row.startsAt.getTime(), dayStart);
+      const to = Math.min(row.endsAt.getTime(), dayEnd);
+      if (from >= to) continue;
+      exceptions.push({
+        key: `${row.id}|${date}`,
+        id: row.id,
+        kind: row.kind,
+        date,
+        start: minutesInDay(new Date(from), date, timeZone),
+        end: minutesInDay(new Date(to), date, timeZone),
+        instructorId: row.instructorId,
+        instructorName: row.instructorName,
+        periodLabel: periodLabel(row.startsAt, row.endsAt, timeZone),
+        note: row.note,
+      });
+    }
+  }
+
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = addDays(weekStart, index);
     const noon = new Date(localToInstant(date, 12 * 60, timeZone));
@@ -132,8 +183,14 @@ export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery 
     title: formatWeekRange(weekStart, weekEnd),
     days,
     now: { date: today, minutes: minutesInDay(now, today, timeZone) },
-    range: gridRange(workHours, [...lessons.filter((l) => l.blocksCalendar), ...slots]),
+    // Dodatkowe godziny poszerzają siatkę jak godziny pracy; wolne i urlop nie.
+    range: gridRange(workHours, [
+      ...lessons.filter((l) => l.blocksCalendar),
+      ...slots,
+      ...exceptions.filter((e) => e.kind === 'extra'),
+    ]),
     isStaff: overview.isStaff,
+    isInstructor: asInstructor,
     client: overview.client
       ? {
           id: overview.client.id,
@@ -156,22 +213,29 @@ export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery 
       balance: c.balance,
     })),
     instructors: overview.instructors,
-    services: overview.services.map((s) => ({ id: s.id, name: s.name })),
+    services: services.map((s) => ({ id: s.id, name: s.name })),
     service,
     lessons,
     slots,
+    exceptions,
   };
 }
 
-/** Od najwcześniejszego początku do najpóźniejszego końca stałych godzin pracy aktywnych instruktorów. */
-function workHoursRange(db: Database, ctx: FirmContext): Promise<Timed | null> {
+/**
+ * Od najwcześniejszego początku do najpóźniejszego końca stałych godzin pracy aktywnych instruktorów,
+ * obowiązujących dziś albo później (bez godzin, które już się skończyły albo zastąpiły je nowe).
+ */
+function workHoursRange(db: Database, ctx: FirmContext, today: string, instructorId?: string): Promise<Timed | null> {
   return withTenant(db, ctx, async (tx) => {
-    const row = await tx
+    let query = tx
       .selectFrom('availabilityRules as r')
       .innerJoin('instructors as i', 'i.id', 'r.instructorId')
       .select((eb) => [eb.fn.min<string | null>('r.startTime').as('start'), eb.fn.max<string | null>('r.endTime').as('end')])
       .where('i.active', '=', true)
-      .executeTakeFirst();
+      .where('r.active', '=', true)
+      .where((eb) => eb.or([eb('r.validTo', 'is', null), eb('r.validTo', '>=', sql<Date>`${today}::date`)]));
+    if (instructorId) query = query.where('r.instructorId', '=', instructorId);
+    const row = await query.executeTakeFirst();
     if (!row?.start || !row.end) return null;
     return { start: timeToMinutes(row.start), end: timeToMinutes(row.end) };
   });

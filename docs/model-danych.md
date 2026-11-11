@@ -1,6 +1,6 @@
 # Model danych
 
-Źródło prawdy: migracje w [`db/migrations`](../db/migrations) — `0001_init.sql` (dane firm) i `0002_logowanie.sql` (logowanie). Reguły z tego dokumentu sprawdzają testy w [`db/tests`](../db/tests) i [`src/lib`](../src/lib).
+Źródło prawdy: migracje w [`db/migrations`](../db/migrations) — `0001_init.sql` (dane firm), `0002_logowanie.sql` (logowanie) i `0003_ustawienia_grafiku.sql` (flagi `active` godzin pracy i wyjątków, etap 3b). Reguły z tego dokumentu sprawdzają testy w [`db/tests`](../db/tests) i [`src/lib`](../src/lib).
 
 ```mermaid
 erDiagram
@@ -40,9 +40,9 @@ erDiagram
 | `auth_verifications` | jednorazowe tokeny z linków w mailach | globalna, bez RLS; tylko skrót tokenu, nigdy token wprost |
 | `memberships` | rola użytkownika w firmie: `owner`, `admin`, `instructor` | użytkownik widzi własne role we wszystkich firmach |
 | `clients` | klient firmy (dla szkoły pierwszego tańca: para), status i limit | limit > 0 tylko dla `trusted`; e-mail unikalny w firmie |
-| `instructors` | instruktorzy | wyłączamy (`active`), nie kasujemy |
-| `availability_rules` | stałe godziny pracy w tygodniu, w czasie lokalnym firmy | 1 = poniedziałek |
-| `availability_exceptions` | urlop, wolne (`unavailable`) albo dodatkowe godziny (`extra`) | czas bezwzględny |
+| `instructors` | instruktorzy; opcjonalnie konto logowania (`user_id`), z którym instruktor widzi swoje lekcje | wyłączamy (`active`), nie kasujemy; jedno konto to najwyżej jeden instruktor w firmie |
+| `availability_rules` | stałe godziny pracy w tygodniu, w czasie lokalnym firmy, od `valid_from` do `valid_to` | 1 = poniedziałek; zmiana „od dnia” kończy stare godziny (`valid_to`), a zastąpione zaplanowane wyłącza (`active`) |
+| `availability_exceptions` | urlop, wolne (`unavailable`) albo dodatkowe godziny (`extra`), kto wpisał | czas bezwzględny; odwołany wpis wyłączamy (`active`) |
 | `services` | rodzaj lekcji: długość (domyślnie 45 min), ile lekcji zdejmuje, cena pojedynczej | |
 | `packages` | pakiety, np. 5 lekcji za 900 zł | |
 | `payments` | płatności Stripe i gotówka | gotówka zawsze z osobą, która przyjęła; opłacona zawsze z datą |

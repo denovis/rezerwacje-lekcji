@@ -60,6 +60,26 @@ export default async function FirmPage({
           <h1>{firm.name}</h1>
           <p className="muted small">Twoja rola: {firm.roles.map((role) => ROLE_LABELS[role]).join(', ')}</p>
         </div>
+        {week?.isStaff ? (
+          <Link href={`/panel/${slug}/ustawienia`} className="pill">
+            Ustawienia grafiku
+          </Link>
+        ) : null}
+        {week?.isInstructor ? (
+          <div className="balance">
+            <span className="muted small">Twoje lekcje</span>
+            {week.upcoming ? (
+              <span className="small">
+                Najbliższa:{' '}
+                <Link href={href({ tydzien: week.upcoming.nextWeek })} scroll={false}>
+                  {week.upcoming.nextLabel}
+                </Link>
+              </span>
+            ) : (
+              <span className="muted small">Brak zaplanowanych lekcji</span>
+            )}
+          </div>
+        ) : null}
         {week?.client ? (
           <div className="balance">
             <span className="muted small">Na koncie</span>
@@ -97,8 +117,9 @@ export default async function FirmPage({
         <WeekCalendar data={week} slug={slug} view={view} links={links} />
       ) : (
         <p className="muted">
-          Kalendarz widzą klienci i szkoła. Grafik instruktora pojawi się tutaj w kolejnej wersji. Jeśli chcesz rezerwować
-          lekcje, poproś szkołę o założenie profilu klienta.
+          Kalendarz widzą klienci, szkoła i instruktorzy. Jeśli prowadzisz lekcje, poproś szkołę o wpisanie Twojego adresu
+          e-mail przy instruktorze w ustawieniach grafiku. Jeśli chcesz rezerwować lekcje, poproś szkołę o założenie profilu
+          klienta.
         </p>
       )}
 
