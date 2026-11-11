@@ -593,6 +593,7 @@ interface RulesFields {
   maxAdvanceDays: string;
   cancelDeadlineHours: string;
   firstLessonPrepaid: boolean;
+  defaultTrustedCreditLimit: string;
 }
 
 function toFields(rules: ScheduleRules): RulesFields {
@@ -606,6 +607,7 @@ function toFields(rules: ScheduleRules): RulesFields {
     maxAdvanceDays: String(rules.maxAdvanceDays),
     cancelDeadlineHours: String(rules.cancelDeadlineHours),
     firstLessonPrepaid: rules.firstLessonPrepaid,
+    defaultTrustedCreditLimit: String(rules.defaultTrustedCreditLimit),
   };
 }
 
@@ -621,6 +623,7 @@ function toRules(fields: RulesFields): ScheduleRules {
     maxAdvanceDays: number(fields.maxAdvanceDays),
     cancelDeadlineHours: number(fields.cancelDeadlineHours),
     firstLessonPrepaid: fields.firstLessonPrepaid,
+    defaultTrustedCreditLimit: number(fields.defaultTrustedCreditLimit),
   };
 }
 
@@ -721,6 +724,12 @@ function RulesForm({
           'Pierwsza lekcja nowej pary tylko z płatnością online',
           'Płatności online dodamy w etapie 4. Do tego czasu nowa para bez lekcji na koncie dostaje informację, żeby skontaktowała się ze szkołą.',
         )}
+      </fieldset>
+      <fieldset>
+        <legend>Klienci</legend>
+        {numberField('defaultTrustedCreditLimit', 'Zaufana para może zejść do', 'lekcji poniżej zera', {
+          hint: 'Domyślny limit dla pary, którą oznaczysz jako zaufaną. Każdej parze możesz go potem zmienić na stronie Klienci.',
+        })}
       </fieldset>
       <div className="form-foot">
         <button type="submit" disabled={pending || !changed}>

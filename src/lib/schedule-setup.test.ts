@@ -52,6 +52,7 @@ const DEFAULT_RULES: ScheduleRules = {
   maxAdvanceDays: 60,
   cancelDeadlineHours: 24,
   firstLessonPrepaid: true,
+  defaultTrustedCreditLimit: 1,
 };
 
 let owner: pg.Pool;
@@ -420,6 +421,7 @@ describe('Reguły grafiku', () => {
     expect(checkScheduleRules({ ...DEFAULT_RULES, maxAdvanceDays: 0 })).toBe('invalid_max_advance');
     expect(checkScheduleRules({ ...DEFAULT_RULES, minNoticeMinutes: 721 * 60 })).toBe('invalid_min_notice');
     expect(checkScheduleRules({ ...DEFAULT_RULES, cancelDeadlineHours: 1000 })).toBe('invalid_cancel_deadline');
+    expect(checkScheduleRules({ ...DEFAULT_RULES, defaultTrustedCreditLimit: 21 })).toBe('invalid_trusted_limit');
 
     const firm = await createFirm();
     expect(await refusal(updateScheduleRules(db, firm.staff, { ...DEFAULT_RULES, minGapMinutes: 601 }))).toBe('invalid_min_gap');

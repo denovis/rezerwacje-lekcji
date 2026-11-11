@@ -1,11 +1,13 @@
 'use client';
 // Okienko kalendarza: rezerwacja wolnego terminu, wpisanie lekcji o dowolnej godzinie (szkoła),
-// wolne i dodatkowe godziny instruktora (szkoła) oraz szczegóły lekcji z odwołaniem.
+// wolne i dodatkowe godziny instruktora (szkoła) oraz szczegóły lekcji z odwołaniem i nieobecnością (szkoła).
 // Wynik akcji pokazujemy na miejscu, bez przechodzenia na inną stronę.
+import Link from 'next/link';
 import { useState } from 'react';
 import { lessonsLabel } from '../../../lib/format';
 import type { CalendarException, CalendarLesson, CalendarSlot, WeekData } from '../../../lib/week-layout';
 import { bookAction, cancelAction } from './actions';
+import { markNoShowAction, undoNoShowAction } from './client-actions';
 import { EXCEPTION_TITLES, ExceptionDetails, ExceptionForm, exceptionAddedMessage, type ExceptionKind } from './exception-form';
 import { addExceptionAction, cancelExceptionAction } from './setup-actions';
 import { Modal, useAction } from './ui';
@@ -50,7 +52,18 @@ export function CalendarDialog({ state, data, slug, onClose, onDone }: Props) {
               : 'Lekcja odwołana po terminie, więc przepada.',
           ),
       );
-    body = <LessonDetails lesson={state.lesson} data={data} pending={pending} onCancel={cancel} />;
+    const lesson = state.lesson;
+    const noShow = () =>
+      lesson.noShow === 'undo'
+        ? run(
+            () => undoNoShowAction({ slug, bookingId: lesson.id }),
+            () => onDone(`Cofnięto nieobecność: ${lesson.clientName}, ${lesson.timeLabel}.`),
+          )
+        : run(
+            () => markNoShowAction({ slug, bookingId: lesson.id }),
+            () => onDone(`Oznaczono nieobecność: ${lesson.clientName}, ${lesson.timeLabel}. Lekcja przepada.`),
+          );
+    body = <LessonDetails lesson={lesson} data={data} slug={slug} pending={pending} onCancel={cancel} onNoShow={noShow} />;
   } else if (state.type === 'exception') {
     const exception = state.exception;
     body = (
@@ -129,13 +142,17 @@ export function CalendarDialog({ state, data, slug, onClose, onDone }: Props) {
 function LessonDetails({
   lesson,
   data,
+  slug,
   pending,
   onCancel,
+  onNoShow,
 }: {
   lesson: CalendarLesson;
   data: WeekData;
+  slug: string;
   pending: boolean;
   onCancel: () => void;
+  onNoShow: () => void;
 }) {
   // Szkoła i instruktor widzą parę, klient rodzaj lekcji.
   const forSchool = data.isStaff || data.isInstructor;
@@ -150,6 +167,26 @@ function LessonDetails({
         {data.isInstructor ? '' : `${lesson.instructorName} · `}
         {lesson.statusLabel}
       </p>
+      {data.isStaff ? (
+        <p className="small">
+          <Link href={`/panel/${slug}/klienci?para=${lesson.clientId}`}>Historia lekcji i saldo pary ›</Link>
+        </p>
+      ) : null}
+      {lesson.noShow === 'mark' ? (
+        <div className="modal-actions">
+          <p className="small">Para nie przyszła? Po oznaczeniu nieobecności lekcja przepada (nie wraca na konto).</p>
+          <button type="button" className="secondary danger-outline" onClick={onNoShow} disabled={pending}>
+            {pending ? 'Zapisuję…' : 'Oznacz nieobecność'}
+          </button>
+        </div>
+      ) : lesson.noShow === 'undo' ? (
+        <div className="modal-actions">
+          <p className="small">Oznaczone pomyłkowo? Lekcja wróci do poprzedniego statusu.</p>
+          <button type="button" className="secondary" onClick={onNoShow} disabled={pending}>
+            {pending ? 'Zapisuję…' : 'Cofnij nieobecność'}
+          </button>
+        </div>
+      ) : null}
       {lesson.cancel ? (
         <div className="modal-actions">
           <p className="small">

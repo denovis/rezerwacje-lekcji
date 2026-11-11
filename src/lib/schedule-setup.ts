@@ -43,6 +43,7 @@ const MESSAGES = {
   invalid_min_notice: 'Wyprzedzenie rezerwacji: od 0 do 720 godzin.',
   invalid_max_advance: 'Rezerwacje naprzód: od 1 do 730 dni.',
   invalid_cancel_deadline: 'Termin odwołania: od 0 do 720 godzin przed lekcją.',
+  invalid_trusted_limit: 'Domyślny limit zaufanej pary: od 0 do 20 lekcji.',
 } as const;
 
 export type SetupErrorCode = keyof typeof MESSAGES;
@@ -68,6 +69,8 @@ export interface ScheduleRules {
   maxAdvanceDays: number;
   cancelDeadlineHours: number;
   firstLessonPrepaid: boolean;
+  /** Domyślny limit zejścia poniżej zera dla pary, która zostaje zaufana. */
+  defaultTrustedCreditLimit: number;
 }
 
 type NumericRule = { [K in keyof ScheduleRules]: ScheduleRules[K] extends number ? K : never }[keyof ScheduleRules];
@@ -80,6 +83,7 @@ const RULE_LIMITS: Record<NumericRule, [min: number, max: number, error: SetupEr
   minNoticeMinutes: [0, 720 * 60, 'invalid_min_notice'],
   maxAdvanceDays: [1, 730, 'invalid_max_advance'],
   cancelDeadlineHours: [0, 720, 'invalid_cancel_deadline'],
+  defaultTrustedCreditLimit: [0, 20, 'invalid_trusted_limit'],
 };
 
 /** Pierwszy błąd w regułach grafiku albo null, gdy wszystkie wartości są w dozwolonych zakresach. */
@@ -286,6 +290,7 @@ export function loadScheduleSetup(db: Database, ctx: FirmContext, now: Date = ne
         'maxAdvanceDays',
         'cancelDeadlineHours',
         'firstLessonPrepaid',
+        'defaultTrustedCreditLimit',
       ])
       .executeTakeFirstOrThrow();
 
@@ -594,6 +599,7 @@ export function updateScheduleRules(db: Database, ctx: FirmContext, rules: Sched
       maxAdvanceDays: rules.maxAdvanceDays,
       cancelDeadlineHours: rules.cancelDeadlineHours,
       firstLessonPrepaid: Boolean(rules.firstLessonPrepaid),
+      defaultTrustedCreditLimit: rules.defaultTrustedCreditLimit,
     };
     await tx.updateTable('organizationSettings').set(values).where('organizationId', '=', ctx.organizationId).execute();
     await audit(tx, ctx, 'settings.schedule_updated', 'organization_settings', ctx.organizationId, { ...values });

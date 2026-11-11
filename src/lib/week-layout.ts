@@ -31,9 +31,12 @@ export interface CalendarLesson extends Timed {
   statusLabel: string;
   /** Lekcja zajmuje termin (widać ją w siatce); odwołane widać tylko na liście. */
   blocksCalendar: boolean;
+  clientId: string;
   clientName: string;
   instructorName: string;
   serviceName: string;
+  /** Szkoła: „mark” — można oznaczyć nieobecność (lekcja już się zaczęła), „undo” — można ją cofnąć. */
+  noShow: 'mark' | 'undo' | null;
   /** Null: lekcji nie można już odwołać (zaczęła się, odbyła albo jest odwołana). */
   cancel: { refundable: boolean; deadlineLabel: string } | null;
 }

@@ -1060,6 +1060,118 @@ button.danger-outline {
   gap: 8px 14px;
 }
 
+/* Linki szkoły w nagłówku kalendarza: Klienci, Ustawienia grafiku. */
+.head-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Strona Klienci. */
+input[type='search'],
+input[type='tel'],
+textarea {
+  font: inherit;
+  color: inherit;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 100%;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.form-grid input[type='email'],
+.form-grid input[type='text'],
+.form-grid input[type='tel'],
+.form-grid textarea,
+.form-grid select {
+  width: 100%;
+}
+
+.clients-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.clients-toolbar .segmented button {
+  white-space: nowrap;
+}
+
+.clients-toolbar .search {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.client-row strong {
+  margin-right: 8px;
+}
+
+.client-meta {
+  overflow-wrap: anywhere;
+}
+
+.client-balance {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.negative,
+.client-balance.negative {
+  color: var(--danger);
+}
+
+.positive {
+  color: var(--success);
+}
+
+/* Historia lekcji pary w okienku. */
+.history {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--grid-line);
+}
+
+.history li > div:first-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.history-details {
+  overflow-wrap: anywhere;
+}
+
+.history li.no-show .history-details {
+  color: var(--danger);
+}
+
+.history-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+
+/* Miejsce na historię, zanim się wczyta: okienko nie skacze. */
+.history-loading {
+  min-height: 120px;
+}
+
 @media (max-width: 600px) {
   .rule-row {
     grid-template-columns: 1fr;
