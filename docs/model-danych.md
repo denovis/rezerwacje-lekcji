@@ -38,7 +38,7 @@ erDiagram
 | `instructors` | instruktorzy | wyłączamy (`active`), nie kasujemy |
 | `availability_rules` | stałe godziny pracy w tygodniu, w czasie lokalnym firmy | 1 = poniedziałek |
 | `availability_exceptions` | urlop, wolne (`unavailable`) albo dodatkowe godziny (`extra`) | czas bezwzględny |
-| `services` | rodzaj lekcji: długość, ile lekcji zdejmuje, cena pojedynczej | |
+| `services` | rodzaj lekcji: długość (domyślnie 45 min), ile lekcji zdejmuje, cena pojedynczej | |
 | `packages` | pakiety, np. 5 lekcji za 900 zł | |
 | `payments` | płatności Stripe i gotówka | gotówka zawsze z osobą, która przyjęła; opłacona zawsze z datą |
 | `bookings` | rezerwacje z czasem, statusem i blokadą na czas płatności | **ten sam instruktor nie może mieć nakładających się rezerwacji** |

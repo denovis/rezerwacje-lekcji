@@ -56,9 +56,12 @@ Wersja 0.1 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
 
 ### Reguły grafiku (ustawienia firmy w `organization_settings`)
 
+Długość lekcji ustawia się w usłudze (`services.duration_minutes`), domyślnie 45 minut. Firma może mieć kilka usług o różnej długości.
+
 | Ustawienie | Domyślnie | Co robi |
 |---|---|---|
-| `slot_step_minutes` | 30 | co ile minut może zacząć się lekcja |
+| `back_to_back_slots` | tak | lekcje jedna po drugiej: kolejna zaczyna się zaraz po końcu poprzedniej, plus przerwa `buffer_minutes` |
+| `slot_step_minutes` | 30 | działa po wyłączeniu `back_to_back_slots`: lekcje zaczynają się co tyle minut (16:00, 16:30, 17:00…) |
 | `buffer_minutes` | 0 | przerwa po każdej lekcji; blokuje kalendarz |
 | `min_gap_minutes` | 0 (wyłączone) | nie pokazuje terminów, które zostawiłyby przerwę krótszą niż ta wartość |
 | `compact_days` | nie | „przyklejanie”: gdy dzień ma rezerwację, pokazuje tylko terminy tuż obok niej |
@@ -69,8 +72,13 @@ Wersja 0.1 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
 | `first_lesson_prepaid` | tak | pierwsza lekcja nowego klienta tylko z płatnością online |
 | `payment_hold_minutes` | 30 | jak długo termin czeka na płatność (30 min – 24 h) |
 
-Przykład dla `min_gap_minutes` = 60 (sprawdzony skryptem):
-- okno 16:00–21:00, lekcje po 60 minut, start co 30 minut, rezerwacja 18:00–19:00;
+Lekcje jedna po drugiej przy godzinach pracy 16:00–21:00 i lekcjach po 45 minut (sprawdzone skryptem):
+- bez przerwy: 16:00, 16:45, 17:30, 18:15, 19:00 i 19:45; ostatnia kończy się 20:30, a ostatnich 30 minut nie da się zarezerwować, bo nie zmieści się w nich cała lekcja;
+- z przerwą 15 minut: 16:00, 17:00, 18:00, 19:00 i 20:00;
+- po każdej rezerwacji następny termin zaczyna się zaraz po jej końcu (plus przerwa), także gdy admin wpisał lekcję o innej godzinie. Przy lekcji 17:00–17:45 wolne terminy to 16:00, 17:45, 18:30, 19:15 i 20:00.
+
+Przykład dla `min_gap_minutes` = 60 przy stałej siatce co 30 minut (`back_to_back_slots` wyłączone), sprawdzony skryptem:
+- okno 16:00–21:00, lekcje po 60 minut, rezerwacja 18:00–19:00;
 - znikają 16:30 i 19:30, bo każdy z tych terminów zostawiłby po 30 minut z obu stron;
 - zostają 16:00, 17:00, 19:00 i 20:00.
 
@@ -127,6 +135,6 @@ Przykład dla `min_gap_minutes` = 60 (sprawdzony skryptem):
 
 1. **Ten PR:** decyzje, model danych (migracja SQL) i testy bazy.
 2. Szkielet Next.js, logowanie, wybór firmy, połączenie z bazą jako `app_user`.
-3. Kalendarz i rezerwacje. Wyliczanie wolnych terminów to czysta funkcja: dostępność minus rezerwacje i przerwy, potem siatka startów i reguły. Do tego testy każdej reguły, rezerwacja i odwołanie z historią lekcji.
+3. Kalendarz i rezerwacje. Wyliczanie wolnych terminów to czysta funkcja: dostępność minus rezerwacje i przerwy, potem starty (jedna po drugiej albo co stałą liczbę minut) i reguły. Do tego testy każdej reguły, rezerwacja i odwołanie z historią lekcji.
 4. Płatności: Stripe Checkout, webhook, gotówka w panelu.
 5. Przypomnienia i zadania w tle: wygasanie blokad, oznaczanie lekcji jako odbytych, przejście klienta z nowego na stałego.

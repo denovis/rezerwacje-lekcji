@@ -121,3 +121,33 @@ describe('Rezerwacje: nakładające się terminy', () => {
     expect(rows[0]?.n).toBe(1);
   });
 });
+
+describe('Domyślne ustawienia grafiku', () => {
+  it('nowa usługa domyślnie trwa 45 minut', async () => {
+    const { rows } = await pool.query<{ duration_minutes: number }>(
+      `INSERT INTO services (organization_id, name) VALUES ($1, 'Lekcja') RETURNING duration_minutes`,
+      [orgId],
+    );
+    expect(rows[0]?.duration_minutes).toBe(45);
+  });
+
+  it('nowa firma domyślnie ma lekcje jedna po drugiej, bez przerwy', async () => {
+    const { rows } = await pool.query<{ back_to_back_slots: boolean; buffer_minutes: number }>(
+      'SELECT back_to_back_slots, buffer_minutes FROM organization_settings WHERE organization_id = $1',
+      [orgId],
+    );
+    expect(rows[0]).toEqual({ back_to_back_slots: true, buffer_minutes: 0 });
+  });
+
+  it('lekcje po 45 minut jedna po drugiej (16:00, 16:45, 17:30) nie kolidują', async () => {
+    const d = nextDay();
+    const service45 = await createService(pool, orgId, 45);
+    for (const [from, to] of [
+      ['16:00', '16:45'],
+      ['16:45', '17:30'],
+      ['17:30', '18:15'],
+    ] as const) {
+      await expect(insertBooking(pool, lesson(d, from, to, { serviceId: service45 }))).resolves.toBeTruthy();
+    }
+  });
+});

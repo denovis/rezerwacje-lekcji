@@ -171,7 +171,7 @@ CREATE TABLE services (
   id               uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   organization_id  uuid NOT NULL REFERENCES organizations (id),
   name             text NOT NULL,
-  duration_minutes integer NOT NULL CHECK (duration_minutes BETWEEN 5 AND 600),
+  duration_minutes integer NOT NULL DEFAULT 45 CHECK (duration_minutes BETWEEN 5 AND 600),
   credit_cost      integer NOT NULL DEFAULT 1 CHECK (credit_cost > 0),  -- ile lekcji z konta zdejmuje rezerwacja
   price_cents      integer CHECK (price_cents >= 0),                    -- cena pojedynczej lekcji płatnej online
   active           boolean NOT NULL DEFAULT true,
@@ -301,9 +301,11 @@ GROUP BY c.organization_id, c.id;
 -- -----------------------------------------------------------------------------
 CREATE TABLE organization_settings (
   organization_id                 uuid PRIMARY KEY REFERENCES organizations (id),
-  -- Grafik
+  -- Grafik. Domyślnie lekcje jedna po drugiej: kolejna zaczyna się zaraz po końcu poprzedniej,
+  -- plus przerwa buffer_minutes. slot_step_minutes działa tylko przy back_to_back_slots = false.
+  back_to_back_slots              boolean NOT NULL DEFAULT true,
   slot_step_minutes               integer NOT NULL DEFAULT 30   CHECK (slot_step_minutes BETWEEN 5 AND 240),
-  buffer_minutes                  integer NOT NULL DEFAULT 0    CHECK (buffer_minutes BETWEEN 0 AND 240),
+  buffer_minutes                  integer NOT NULL DEFAULT 0    CHECK (buffer_minutes BETWEEN 0 AND 240),    -- przerwa po każdej lekcji
   min_gap_minutes                 integer NOT NULL DEFAULT 0    CHECK (min_gap_minutes BETWEEN 0 AND 600),   -- 0 = wyłączone
   compact_days                    boolean NOT NULL DEFAULT false,                                             -- „przyklejanie”
   min_notice_minutes              integer NOT NULL DEFAULT 1440 CHECK (min_notice_minutes >= 0),
