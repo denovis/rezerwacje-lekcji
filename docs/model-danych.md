@@ -59,6 +59,16 @@ erDiagram
 - Pilnuje tego ograniczenie `EXCLUDE` w bazie. Działa też wtedy, gdy dwie osoby klikną ten sam termin w tej samej chwili: przechodzi tylko pierwsza, co sprawdza test.
 - Blokada na czas płatności wygasa w czasie (`hold_expires_at`), a warunek `EXCLUDE` nie może używać `now()`. Dlatego aplikacja przed wstawieniem rezerwacji zmienia w tej samej transakcji wygasłe blokady na `expired`.
 
+Rezerwacja w aplikacji ([`src/lib/bookings.ts`](../src/lib/bookings.ts), funkcja `bookLesson`) to jedna transakcja:
+
+1. `SELECT … FOR UPDATE` na wierszu klienta. Kolejna rezerwacja tej samej pary czeka na koniec transakcji i widzi już nowe saldo.
+2. Wygasłe blokady instruktora (`pending_payment` po `hold_expires_at`) zmieniają się na `expired`.
+3. Dla klienta: sprawdzenie, czy termin jest na liście wolnych terminów (`freeSlots` z [`src/lib/slots.ts`](../src/lib/slots.ts)).
+4. Sprawdzenie salda: saldo − koszt usługi ≥ −`credit_limit`.
+5. Wstawienie rezerwacji (`confirmed`, `blocks_until` = koniec + `buffer_minutes`) i wpisu `booking` w `credit_entries`. Gdy ktoś w tej samej chwili zajął termin, `EXCLUDE` odrzuca rezerwację (kod `23P01`).
+
+Odwołanie (`cancelBooking`) blokuje wiersz rezerwacji, zmienia status na `cancelled` albo `late_cancelled` i przy odwołaniu w terminie dopisuje `booking_refund`.
+
 ## Jak aplikacja korzysta z bazy
 
 Aplikacja loguje się rolą `app_user` (`APP_DATABASE_URL`), a dane firmy czyta przez `withTenant()` z [`src/lib/db.ts`](../src/lib/db.ts):

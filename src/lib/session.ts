@@ -1,6 +1,8 @@
 // Zalogowana osoba w stronach i akcjach serwera.
 import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import type { FirmContext } from './bookings';
+import { listMyFirms, type MyFirm } from './firms';
 import { server } from './server';
 
 /** Zwraca zalogowaną osobę albo przekierowuje na stronę logowania. */
@@ -11,4 +13,18 @@ export async function requireUser(): Promise<{ id: string; email: string }> {
   const session = await server().auth.api.getSession({ headers: requestHeaders });
   if (!session) redirect('/logowanie');
   return { id: session.user.id, email: session.user.email };
+}
+
+/**
+ * Firma o podanym adresie, w której zalogowana osoba ma rolę albo profil klienta,
+ * razem z kontekstem do zapytań (withTenant). Bez dostępu: strona 404.
+ */
+export async function requireFirm(
+  user: { id: string },
+  slug: string,
+): Promise<{ firm: MyFirm; ctx: FirmContext; hasOtherFirms: boolean }> {
+  const firms = await listMyFirms(server().db, user.id);
+  const firm = firms.find((candidate) => candidate.slug === slug);
+  if (!firm) notFound();
+  return { firm, ctx: { organizationId: firm.id, userId: user.id }, hasOtherFirms: firms.length > 1 };
 }

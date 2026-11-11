@@ -1,4 +1,4 @@
-/* Proste style szkieletu. Właściwy wygląd powstanie razem z grafikiem (etap 3). */
+/* Style aplikacji: karta, kalendarz tygodniowy (siatka godzin), lista dni i okienka. */
 :root {
   --bg: #f7f5f2;
   --surface: #ffffff;
@@ -6,8 +6,13 @@
   --muted: #6b665f;
   --accent: #8a3b5c;
   --accent-text: #ffffff;
+  --accent-soft: #f6e9ef;
   --border: #e3ded6;
+  --grid-line: #efebe5;
+  --past: #faf8f5;
   --danger: #a12828;
+  --success: #2f7a43;
+  --now: #d93a3a;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -21,8 +26,13 @@
     --muted: #a59e94;
     --accent: #d77fa3;
     --accent-text: #1a1416;
+    --accent-soft: #3a2630;
     --border: #3a352f;
+    --grid-line: #2c2824;
+    --past: #1d1b18;
     --danger: #f08a8a;
+    --success: #8fd19e;
+    --now: #ff6b6b;
   }
 }
 
@@ -44,21 +54,46 @@ body {
 }
 
 .page {
-  max-width: 560px;
-  margin: 40px auto;
+  max-width: 1180px;
+  margin: 32px auto;
   padding: 0 16px;
 }
 
 .card {
+  max-width: 560px;
+  margin: 0 auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
 }
 
+.card.wide {
+  max-width: none;
+}
+
 h1 {
   font-size: 1.5rem;
-  margin: 0 0 12px;
+  margin: 0 0 4px;
+}
+
+h2 {
+  font-size: 1.2rem;
+  margin: 0 0 10px;
+}
+
+h3 {
+  font-size: 1rem;
+  margin: 16px 0 8px;
+}
+
+h3::first-letter,
+.capitalize::first-letter {
+  text-transform: uppercase;
+}
+
+.capitalize {
+  display: inline-block;
 }
 
 p {
@@ -67,6 +102,10 @@ p {
 
 .muted {
   color: var(--muted);
+}
+
+.small {
+  font-size: 0.875rem;
 }
 
 label {
@@ -86,6 +125,18 @@ input[type='email'] {
   margin-bottom: 16px;
 }
 
+select,
+input[type='date'],
+input[type='time'] {
+  font: inherit;
+  color: inherit;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 100%;
+}
+
 button {
   font: inherit;
   padding: 10px 16px;
@@ -101,6 +152,20 @@ button.secondary {
   color: var(--accent);
 }
 
+button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+button.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: wait;
@@ -112,7 +177,12 @@ a {
 
 .alert {
   color: var(--danger);
-  margin: 12px 0 16px;
+  margin: 12px 0;
+}
+
+.notice {
+  color: var(--success);
+  margin: 12px 0;
 }
 
 .firms {
@@ -132,4 +202,510 @@ a {
 
 .actions {
   margin-top: 20px;
+}
+
+/* Nagłówek i stopka panelu firmy. */
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.panel-head p {
+  margin: 0;
+}
+
+.balance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.balance strong {
+  font-size: 1.25rem;
+}
+
+.panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.panel-foot .actions {
+  margin: 0;
+}
+
+/* Pasek kalendarza: tydzień, widok, nowa lekcja. */
+.cal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.cal-nav,
+.cal-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cal-nav h2 {
+  margin: 0 0 0 8px;
+}
+
+.icon-button,
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  min-width: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 1rem;
+}
+
+.icon-button {
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.icon-button:hover,
+.pill:hover {
+  background: var(--bg);
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented a {
+  padding: 8px 14px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.segmented a + a {
+  border-left: 1px solid var(--border);
+}
+
+.segmented a[aria-current='page'] {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.segmented.services {
+  margin-bottom: 16px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.swatch-lesson {
+  background: var(--accent);
+}
+
+.swatch-slot {
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Siatka tygodnia. */
+.cal-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.cal {
+  display: grid;
+  grid-template-columns: 52px repeat(7, minmax(84px, 1fr));
+  min-width: 640px;
+}
+
+.cal-corner,
+.cal-dayhead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-corner {
+  left: 0;
+  z-index: 4;
+}
+
+.cal-dayhead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0;
+  border-left: 1px solid var(--border);
+}
+
+.cal-weekday {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cal-daynum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+}
+
+.cal-dayhead.today .cal-daynum {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.cal-dayhead.past {
+  color: var(--muted);
+}
+
+.cal-times {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  height: var(--grid-height);
+  background: var(--surface);
+}
+
+.cal-times span {
+  position: absolute;
+  right: 6px;
+  transform: translateY(-50%);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.cal-times span:first-child {
+  transform: none;
+}
+
+.cal-day {
+  position: relative;
+  height: var(--grid-height);
+  border-left: 1px solid var(--border);
+  background-image: linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 100% var(--hour-height);
+}
+
+.cal-day.past {
+  background-color: var(--past);
+}
+
+.cal-day.clickable {
+  cursor: cell;
+}
+
+.cal-event {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  overflow: hidden;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.cal-event-time {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cal-event-title,
+.cal-event-status {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-event.lesson {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.cal-event.lesson.status-completed,
+.cal-event.lesson.status-no_show {
+  opacity: 0.55;
+}
+
+.cal-event.lesson.status-pending_payment {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-style: dashed;
+}
+
+.cal-event.slot {
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Najechanie na wolny termin: wyraźniejsza ramka, ale nie wygląda jak zarezerwowana lekcja. */
+.cal-event.slot:hover,
+.cal-event.slot:focus-visible {
+  border-style: solid;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.cal-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 2px;
+  background: var(--now);
+  pointer-events: none;
+}
+
+.cal-now::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--now);
+}
+
+/* Widok listy. */
+.agenda-day {
+  padding: 4px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.agenda-day:last-child {
+  border-bottom: 0;
+}
+
+.badge {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.agenda-lessons {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.agenda-lesson {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  width: 100%;
+  margin-bottom: 6px;
+  text-align: left;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.agenda-lesson .muted {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.agenda-lesson.inactive {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.agenda-slots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.slot-chip {
+  padding: 6px 12px;
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.slot-chip:hover,
+.slot-chip:focus-visible {
+  border-style: solid;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Komunikat po akcji: dymek na dole ekranu. */
+.toast-area {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--text);
+  color: var(--surface);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+}
+
+.toast.error {
+  background: var(--danger);
+  color: #fff;
+}
+
+.toast-close {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* Okienko (rezerwacja, szczegóły lekcji). */
+.modal {
+  width: min(440px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.modal::backdrop {
+  background: rgba(20, 16, 14, 0.45);
+}
+
+.modal-body {
+  padding: 20px 22px 14px;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.modal-actions p {
+  margin: 0;
+}
+
+.modal-actions-secondary {
+  margin: 12px 0 0;
+  text-align: center;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px 12px;
+  margin: 12px 0;
+}
+
+.form-grid label {
+  margin: 0;
+}
+
+.form-grid .span-2 {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .page {
+    margin: 16px auto;
+    padding: 0 8px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .balance {
+    align-items: flex-start;
+    text-align: left;
+    width: 100%;
+  }
+
+  .cal-nav h2 {
+    font-size: 1rem;
+  }
 }

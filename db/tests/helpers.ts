@@ -119,6 +119,32 @@ export async function createService(pool: pg.Pool, orgId: string, minutes = 60):
   return firstId(rows);
 }
 
+/** Stałe godziny pracy instruktora we wszystkie dni tygodnia (domyślnie 16:00–21:00), obowiązujące od 2020 r. */
+export async function createWeeklyHours(
+  pool: pg.Pool,
+  orgId: string,
+  instructorId: string,
+  from = '16:00',
+  to = '21:00',
+): Promise<void> {
+  for (let weekday = 1; weekday <= 7; weekday++) {
+    await pool.query(
+      `INSERT INTO availability_rules (organization_id, instructor_id, weekday, start_time, end_time, valid_from)
+       VALUES ($1, $2, $3, $4, $5, '2020-01-01')`,
+      [orgId, instructorId, weekday, from, to],
+    );
+  }
+}
+
+/** Dopisuje lekcje na konto klienta ręczną korektą (z autorem i notatką). */
+export async function addCredits(pool: pg.Pool, orgId: string, clientId: string, credits: number, byUserId: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO credit_entries (organization_id, client_id, delta, reason, created_by, note)
+     VALUES ($1, $2, $3, 'adjustment', $4, 'Lekcje do testów')`,
+    [orgId, clientId, credits, byUserId],
+  );
+}
+
 export interface BookingInput {
   orgId: string;
   instructorId: string;
