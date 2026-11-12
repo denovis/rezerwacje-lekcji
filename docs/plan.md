@@ -53,13 +53,15 @@ Strona „Klienci” (przycisk nad kalendarzem); nieobecność w okienku lekcji 
 - [x] Decyzja ([decyzje.md](decyzje.md), „Technologia”): na razie aplikacja działa lokalnie; maile przez Brevo; na start bez domeny.
 - [ ] Wdrożenie na serwer (polecany Render, Frankfurt), gdy aplikacja ma działać dla par przez internet.
 
-### Etap 4a. Ceny, pakiety i gotówka: w trakcie
+### Etap 4a. Ceny, pakiety i gotówka: gotowe (PR #6)
 
 Etap 4 podzielony 12.11.2026 na trzy PR-y; 4a nie wymaga konta Stripe.
 
-- [ ] W ustawieniach: cena pojedynczej lekcji w usłudze.
-- [ ] Pakiety lekcji w ustawieniach: nazwa, liczba lekcji, cena; wyłączanie.
-- [ ] Gotówka w panelu: kto przyjął, ile zł, ile lekcji (pakiet albo pojedyncze lekcje).
+- [x] W ustawieniach: cena pojedynczej lekcji w usłudze.
+- [x] Pakiety lekcji w ustawieniach: nazwa, liczba lekcji, cena; wyłączanie.
+- [x] Gotówka w panelu: kto przyjął, ile zł, ile lekcji (pakiet albo pojedyncze lekcje).
+- [x] Strona „Ustawienia grafiku” nazywa się teraz „Ustawienia” (są tam też ceny i pakiety).
+- [x] Commit i PR.
 
 ### Etap 4b. Płatności online (Stripe): zaplanowane
 

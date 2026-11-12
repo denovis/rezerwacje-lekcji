@@ -1,6 +1,17 @@
 // Teksty w interfejsie po polsku.
 import { describe, expect, it } from 'vitest';
-import { describeWeeklyHours, formatDate, formatDay, formatLocalDay, formatTime, formatWeekRange, lessonsLabel } from './format';
+import {
+  describeWeeklyHours,
+  formatDate,
+  formatDay,
+  formatLocalDay,
+  formatMoney,
+  formatMoneyInput,
+  formatTime,
+  formatWeekRange,
+  lessonsLabel,
+  parseMoney,
+} from './format';
 
 describe('Teksty w interfejsie', () => {
   it('liczba lekcji odmienia się po polsku: 1 lekcja, 2 lekcje, 5 lekcji, 12 lekcji, 22 lekcje', () => {
@@ -43,6 +54,21 @@ describe('Teksty w interfejsie', () => {
       ]),
     ).toEqual(['pon., śr. 16:00–21:00']);
     expect(describeWeeklyHours([])).toEqual([]);
+  });
+
+  it('kwoty są po polsku: 900,00 zł, 1200,50 zł i 12 345,00 zł', () => {
+    const plain = (text: string) => text.replace(/\s/g, ' ');
+    expect(plain(formatMoney(90000))).toBe('900,00 zł');
+    expect(plain(formatMoney(120050))).toBe('1200,50 zł');
+    expect(plain(formatMoney(1234500))).toBe('12 345,00 zł');
+  });
+
+  it('kwota wpisana w złotych: 180, 180,5, 180.50 i 1 200 to grosze; reszta nie jest kwotą', () => {
+    expect(['180', '180,5', '180.50', '1 200', '0', '900 zł'].map(parseMoney)).toEqual([18000, 18050, 18050, 120000, 0, 90000]);
+    expect(['', 'abc', '-5', '1,234', '12,3,4'].map(parseMoney)).toEqual([null, null, null, null, null]);
+    // Pole formularza pokazuje kwotę tak, żeby po wczytaniu wyszła ta sama liczba groszy.
+    expect([90000, 18050, 5].map(formatMoneyInput)).toEqual(['900', '180,50', '0,05']);
+    expect([90000, 18050, 5].map((cents) => parseMoney(formatMoneyInput(cents)))).toEqual([90000, 18050, 5]);
   });
 
   it('dzień w ustawieniach ma krótką nazwę dnia tygodnia: pon., 11 stycznia', () => {

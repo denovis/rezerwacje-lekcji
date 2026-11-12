@@ -19,7 +19,7 @@ const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
 
 const MESSAGES = {
-  not_allowed: 'Ustawienia grafiku zmienia tylko właściciel albo administrator szkoły.',
+  not_allowed: 'Ustawienia zmienia tylko właściciel albo administrator szkoły.',
   invalid_request: 'Nieprawidłowe dane formularza. Odśwież stronę i spróbuj ponownie.',
   name_required: 'Podaj nazwę.',
   name_too_long: 'Nazwa może mieć najwyżej 80 znaków.',
@@ -36,6 +36,7 @@ const MESSAGES = {
   service_not_found: 'Nie znaleziono usługi.',
   invalid_duration: 'Długość lekcji: od 5 do 600 minut.',
   invalid_credit_cost: 'Jedna rezerwacja zdejmuje z konta od 1 do 10 lekcji.',
+  invalid_price: 'Cena lekcji: od 0 do 10 000 zł.',
   last_service: 'Szkoła musi mieć co najmniej jedną aktywną usługę, inaczej nikt nie zarezerwuje lekcji.',
   invalid_slot_step: 'Początki lekcji co ile minut: od 5 do 240.',
   invalid_buffer: 'Przerwa po lekcji: od 0 do 240 minut.',
@@ -200,6 +201,16 @@ export interface SetupService {
   name: string;
   durationMinutes: number;
   creditCost: number;
+  /** Cena pojedynczej lekcji w groszach; null = bez ceny. */
+  priceCents: number | null;
+  active: boolean;
+}
+
+export interface SetupPackage {
+  id: string;
+  name: string;
+  credits: number;
+  priceCents: number;
   active: boolean;
 }
 
@@ -210,6 +221,10 @@ export interface ScheduleSetup {
   /** Najpierw aktywni, potem wyłączeni; w grupie według nazwy. */
   instructors: SetupInstructor[];
   services: SetupService[];
+  /** Najpierw aktywne, w kolejności dodania. */
+  packages: SetupPackage[];
+  /** Waluta firmy, np. PLN. */
+  currency: string;
 }
 
 const hhmm = (time: string) => time.slice(0, 5);
@@ -272,12 +287,24 @@ export function loadScheduleSetup(db: Database, ctx: FirmContext, now: Date = ne
       .execute();
     const services = await tx
       .selectFrom('services')
-      .select(['id', 'name', 'durationMinutes', 'creditCost', 'active'])
+      .select(['id', 'name', 'durationMinutes', 'creditCost', 'priceCents', 'active'])
       .where('organizationId', '=', ctx.organizationId)
       .orderBy('active', 'desc') // najpierw aktywne, w kolejności dodania (jak w kalendarzu)
       .orderBy('createdAt')
       .orderBy('name')
       .execute();
+    const packages = await tx
+      .selectFrom('packages')
+      .select(['id', 'name', 'credits', 'priceCents', 'active'])
+      .where('organizationId', '=', ctx.organizationId)
+      .orderBy('active', 'desc')
+      .orderBy('createdAt')
+      .execute();
+    const { currency } = await tx
+      .selectFrom('organizations')
+      .select('currency')
+      .where('id', '=', ctx.organizationId)
+      .executeTakeFirstOrThrow();
     const settings = await tx
       .selectFrom('organizationSettings')
       .select([
@@ -298,6 +325,8 @@ export function loadScheduleSetup(db: Database, ctx: FirmContext, now: Date = ne
       timeZone,
       today,
       rules: settings,
+      packages,
+      currency,
       instructors: instructors
         .map((i): SetupInstructor => {
           const own = hours.filter((h) => h.instructorId === i.id);
@@ -612,9 +641,18 @@ export interface ServiceInput {
   name: string;
   durationMinutes: number;
   creditCost: number;
+  /** Cena pojedynczej lekcji w groszach (0–10 000 zł); null = bez ceny; przy zmianie brak = bez zmiany. */
+  priceCents?: number | null;
 }
 
+/** Najwyższa cena pojedynczej lekcji: 10 000 zł w groszach. */
+const MAX_LESSON_PRICE_CENTS = 1_000_000;
+
 function checkService(input: ServiceInput): void {
+  const price = input.priceCents;
+  if (price !== undefined && price !== null && (!Number.isInteger(price) || price < 0 || price > MAX_LESSON_PRICE_CENTS)) {
+    throw new SetupError('invalid_price');
+  }
   if (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 5 || input.durationMinutes > 600) {
     throw new SetupError('invalid_duration');
   }
@@ -631,10 +669,21 @@ export function addService(db: Database, ctx: FirmContext, input: ServiceInput):
     checkService(input);
     const row = await tx
       .insertInto('services')
-      .values({ organizationId: ctx.organizationId, name, durationMinutes: input.durationMinutes, creditCost: input.creditCost })
+      .values({
+        organizationId: ctx.organizationId,
+        name,
+        durationMinutes: input.durationMinutes,
+        creditCost: input.creditCost,
+        priceCents: input.priceCents ?? null,
+      })
       .returning('id')
       .executeTakeFirstOrThrow();
-    await audit(tx, ctx, 'service.added', 'services', row.id, { name, durationMinutes: input.durationMinutes, creditCost: input.creditCost });
+    await audit(tx, ctx, 'service.added', 'services', row.id, {
+      name,
+      durationMinutes: input.durationMinutes,
+      creditCost: input.creditCost,
+      priceCents: input.priceCents ?? null,
+    });
     return row;
   });
 }
@@ -671,13 +720,20 @@ export function updateService(db: Database, ctx: FirmContext, input: ServiceUpda
     if (!input.active && service.active && active.length <= 1) throw new SetupError('last_service');
     await tx
       .updateTable('services')
-      .set({ name, durationMinutes: input.durationMinutes, creditCost: input.creditCost, active: input.active })
+      .set({
+        name,
+        durationMinutes: input.durationMinutes,
+        creditCost: input.creditCost,
+        active: input.active,
+        ...(input.priceCents !== undefined ? { priceCents: input.priceCents } : {}),
+      })
       .where('id', '=', service.id)
       .execute();
     await audit(tx, ctx, 'service.updated', 'services', service.id, {
       name,
       durationMinutes: input.durationMinutes,
       creditCost: input.creditCost,
+      priceCents: input.priceCents,
       active: input.active,
     });
   });

@@ -94,6 +94,27 @@ export function describeWeeklyHours(ranges: { weekday: number; start: string; en
   });
 }
 
+/** Kwota w groszach jako tekst, np. 90000 → „900,00 zł”. */
+export function formatMoney(cents: number, currency = 'PLN'): string {
+  return new Intl.NumberFormat('pl-PL', { style: 'currency', currency }).format(cents / 100);
+}
+
+/** Kwota w groszach do pola formularza, bez waluty: 90000 → „900”, 18050 → „180,50”. */
+export function formatMoneyInput(cents: number): string {
+  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2).replace('.', ',');
+}
+
+/**
+ * Kwota wpisana w formularzu (złote, z przecinkiem albo kropką, np. „180”, „180,5”, „1 200,00”) w groszach.
+ * Null, gdy to nie jest kwota albo ma więcej niż dwa miejsca po przecinku.
+ */
+export function parseMoney(text: string): number | null {
+  const value = text.replace(/[\s\u00a0]/g, '').replace(/zł$/i, '').replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(value)) return null;
+  const [whole, fraction = ''] = value.split('.');
+  return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+}
+
 /** Liczba z rzeczownikiem w odpowiedniej formie, np. 1 lekcja, 2 lekcje, 5 lekcji, −1 lekcja. */
 export function pluralize(count: number, one: string, few: string, many: string): string {
   const n = Math.abs(count);

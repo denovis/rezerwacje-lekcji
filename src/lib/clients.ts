@@ -11,7 +11,7 @@ import { sql } from 'kysely';
 import { actorOf, type FirmContext } from './bookings';
 import { withTenant, type Database, type Tx } from './db';
 import type { BookingStatus, ClientStatus, CreditReason, Json } from './db-types';
-import { formatDate, formatDay, formatTime } from './format';
+import { formatDate, formatDay, formatMoney, formatTime } from './format';
 import { isLocalDate } from './local-time';
 
 const MESSAGES = {
@@ -86,8 +86,14 @@ export interface ClientSummary {
 
 export interface ClientsOverview {
   timeZone: string;
+  /** Waluta firmy, np. PLN. */
+  currency: string;
   /** Domyślny limit zaufanej pary z ustawień firmy (default_trusted_credit_limit). */
   defaultTrustedCreditLimit: number;
+  /** Aktywne pakiety do sprzedaży (wpłata gotówką), w kolejności dodania. */
+  packages: { id: string; name: string; credits: number; priceCents: number }[];
+  /** Cena pojedynczej lekcji domyślnej usługi (w groszach), jeśli szkoła ją ustawiła. */
+  lessonPriceCents: number | null;
   /** Według nazwy. */
   clients: ClientSummary[];
 }
@@ -106,9 +112,25 @@ export function loadClients(db: Database, ctx: FirmContext, now: Date = new Date
     const settings = await tx
       .selectFrom('organizations as o')
       .innerJoin('organizationSettings as s', 's.organizationId', 'o.id')
-      .select(['o.timezone', 's.defaultTrustedCreditLimit'])
+      .select(['o.timezone', 'o.currency', 's.defaultTrustedCreditLimit'])
       .where('o.id', '=', ctx.organizationId)
       .executeTakeFirstOrThrow();
+    const packages = await tx
+      .selectFrom('packages')
+      .select(['id', 'name', 'credits', 'priceCents'])
+      .where('organizationId', '=', ctx.organizationId)
+      .where('active', '=', true)
+      .orderBy('createdAt')
+      .execute();
+    // Domyślna usługa w kalendarzu to pierwsza dodana (jak w firmOverview).
+    const service = await tx
+      .selectFrom('services')
+      .select('priceCents')
+      .where('organizationId', '=', ctx.organizationId)
+      .where('active', '=', true)
+      .orderBy('createdAt')
+      .orderBy('name')
+      .executeTakeFirst();
     const rows = await tx
       .selectFrom('clients as c')
       .leftJoin('clientBalances as b', 'b.clientId', 'c.id')
@@ -136,7 +158,10 @@ export function loadClients(db: Database, ctx: FirmContext, now: Date = new Date
     const tz = settings.timezone;
     return {
       timeZone: tz,
+      currency: settings.currency,
       defaultTrustedCreditLimit: settings.defaultTrustedCreditLimit,
+      packages,
+      lessonPriceCents: service?.priceCents ?? null,
       clients: rows
         .map((r): ClientSummary => {
           const lesson = next.find((n) => n.clientId === r.id)?.startsAt;
@@ -353,9 +378,9 @@ const LESSON_STATUS: Partial<Record<BookingStatus, string>> = {
 export function clientHistory(db: Database, ctx: FirmContext, input: { clientId: string }): Promise<ClientHistory> {
   return withTenant(db, ctx, async (tx) => {
     await requireStaff(tx, ctx);
-    const { timeZone } = await tx
+    const { timeZone, currency } = await tx
       .selectFrom('organizations')
-      .select('timezone as timeZone')
+      .select(['timezone as timeZone', 'currency'])
       .where('id', '=', ctx.organizationId)
       .executeTakeFirstOrThrow();
     const client = await tx
@@ -370,6 +395,7 @@ export function clientHistory(db: Database, ctx: FirmContext, input: { clientId:
       .selectFrom('creditEntries as e')
       .leftJoin('bookings as b', 'b.id', 'e.bookingId')
       .leftJoin('payments as p', 'p.id', 'e.paymentId')
+      .leftJoin('packages as k', 'k.id', 'p.packageId')
       .leftJoin('users as u', 'u.id', 'e.createdBy')
       .select([
         'e.id',
@@ -382,6 +408,7 @@ export function clientHistory(db: Database, ctx: FirmContext, input: { clientId:
         'b.status as bookingStatus',
         'p.method',
         'p.amountCents',
+        'k.name as packageName',
         'u.email as author',
       ])
       .where('e.clientId', '=', client.id)
@@ -398,8 +425,8 @@ export function clientHistory(db: Database, ctx: FirmContext, input: { clientId:
         const status = r.bookingStatus ? LESSON_STATUS[r.bookingStatus] : undefined;
         details = `lekcja ${formatDay(r.startsAt, timeZone)}, ${formatTime(r.startsAt, timeZone)}–${formatTime(r.endsAt, timeZone)}${status ? ` (${status})` : ''}`;
       } else if (r.method) {
-        const amount = r.amountCents !== null ? `${(r.amountCents / 100).toFixed(2).replace('.', ',')} zł` : '';
-        details = [r.method === 'cash' ? 'gotówka' : 'online', amount, r.note].filter(Boolean).join(', ');
+        const amount = r.amountCents !== null ? formatMoney(r.amountCents, currency) : '';
+        details = [r.method === 'cash' ? 'gotówka' : 'online', r.packageName, amount, r.note].filter(Boolean).join(', ');
       }
       return {
         id: r.id,

@@ -1,10 +1,11 @@
 'use server';
-// Akcje ustawień grafiku: instruktorzy, godziny pracy, wolne i dodatkowe godziny, reguły grafiku, usługi.
+// Akcje ustawień: instruktorzy, godziny pracy, wolne i dodatkowe godziny, reguły grafiku, usługi i pakiety.
 // Wywołują je strona ustawień i kalendarz; wynik (powodzenie albo komunikat po polsku) pokazują na miejscu.
 // Każda akcja sama sprawdza logowanie i dostęp do firmy; zasady pilnuje src/lib/schedule-setup.ts.
 import { revalidatePath } from 'next/cache';
 import type { FirmContext } from '../../../lib/bookings';
 import { findMyFirm } from '../../../lib/firms';
+import { addPackage, PaymentError, updatePackage } from '../../../lib/payments';
 import {
   addException,
   addInstructor,
@@ -42,11 +43,12 @@ async function attempt(slugInput: unknown, change: (ctx: FirmContext) => Promise
   try {
     return (await change({ organizationId: firm.id, userId: user.id })) ?? { ok: true };
   } catch (err) {
-    if (err instanceof SetupError) return { ok: false, error: err.message };
+    if (err instanceof SetupError || err instanceof PaymentError) return { ok: false, error: err.message };
     throw err;
   } finally {
     revalidatePath(`/panel/${slug}`);
     revalidatePath(`/panel/${slug}/ustawienia`);
+    revalidatePath(`/panel/${slug}/klienci`);
   }
 }
 
@@ -145,16 +147,46 @@ export interface ServicePayload {
   name: string;
   durationMinutes: number;
   creditCost: number;
+  /** Cena pojedynczej lekcji w groszach; null = bez ceny. */
+  priceCents: number | null;
   active?: boolean;
 }
 
 export async function saveServiceAction(input: ServicePayload): Promise<SetupResult> {
   return attempt(input?.slug, async (ctx) => {
-    const fields = { name: text(input.name), durationMinutes: integer(input.durationMinutes), creditCost: integer(input.creditCost) };
+    const fields = {
+      name: text(input.name),
+      durationMinutes: integer(input.durationMinutes),
+      creditCost: integer(input.creditCost),
+      priceCents: input.priceCents === null ? null : integer(input.priceCents),
+    };
     if (input.serviceId === undefined) {
       await addService(server().db, ctx, fields);
     } else {
       await updateService(server().db, ctx, { ...fields, serviceId: uuid(input.serviceId), active: input.active !== false });
+    }
+  });
+}
+
+export interface PackagePayload {
+  slug: string;
+  /** Brak: nowy pakiet. */
+  packageId?: string;
+  name: string;
+  credits: number;
+  /** Cena w groszach. */
+  priceCents: number;
+  active?: boolean;
+}
+
+export async function savePackageAction(input: PackagePayload): Promise<SetupResult> {
+  return attempt(input?.slug, async (ctx) => {
+    const fields = { name: text(input.name), credits: integer(input.credits), priceCents: integer(input.priceCents) };
+    if (input.packageId === undefined) {
+      await addPackage(server().db, ctx, fields);
+    } else {
+      if (!UUID.test(text(input.packageId))) throw new SetupError('invalid_request');
+      await updatePackage(server().db, ctx, { ...fields, packageId: text(input.packageId), active: input.active !== false });
     }
   });
 }

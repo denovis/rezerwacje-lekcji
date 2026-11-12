@@ -1,22 +1,27 @@
 'use client';
 // Strona Klienci: lista par z saldem i wyszukiwaniem, filtr „Na minusie” i okienko pary
-// z historią lekcji, ręczną korektą salda oraz danymi i statusem. Wynik zmian pokazuje dymek na dole ekranu.
+// z historią lekcji, wpłatą gotówką, ręczną korektą salda oraz danymi i statusem.
+// Wynik zmian pokazuje dymek na dole ekranu.
 import { useEffect, useState } from 'react';
 import type { ClientHistory, ClientSummary, ClientsOverview } from '../../../../lib/clients';
 import type { ClientStatus } from '../../../../lib/db-types';
-import { CLIENT_STATUS_LABELS, lessonsLabel } from '../../../../lib/format';
-import { adjustBalanceAction, clientHistoryAction, saveClientAction } from '../client-actions';
+import { CLIENT_STATUS_LABELS, formatMoney, formatMoneyInput, lessonsLabel, parseMoney } from '../../../../lib/format';
+import { adjustBalanceAction, cashPaymentAction, clientHistoryAction, saveClientAction, type CashPayload } from '../client-actions';
 import { Modal, Toast, useAction, useToast } from '../ui';
 
 type Filter = 'all' | 'debt';
-type Tab = 'history' | 'adjust' | 'details';
+type Tab = 'history' | 'cash' | 'adjust' | 'details';
 type Dialog = { type: 'new' } | { type: 'client'; clientId: string };
 
 const TABS: { tab: Tab; label: string }[] = [
   { tab: 'history', label: 'Historia' },
-  { tab: 'adjust', label: 'Korekta salda' },
-  { tab: 'details', label: 'Dane i status' },
+  { tab: 'cash', label: 'Wpłata' },
+  { tab: 'adjust', label: 'Korekta' },
+  { tab: 'details', label: 'Dane' },
 ];
+
+/** Cennik do formularza wpłaty: aktywne pakiety i cena pojedynczej lekcji. */
+type Pricing = Pick<ClientsOverview, 'packages' | 'lessonPriceCents' | 'currency'>;
 
 const STATUS_HINTS: Record<ClientStatus, string> = {
   new: 'Pierwszą lekcję rezerwuje z płatnością online albo z lekcjami na koncie.',
@@ -123,6 +128,7 @@ export function ClientsView({
           client={current}
           slug={slug}
           defaultLimit={overview.defaultTrustedCreditLimit}
+          pricing={overview}
           onClose={close}
           onDone={done}
         />
@@ -170,12 +176,14 @@ function ClientDialog({
   client,
   slug,
   defaultLimit,
+  pricing,
   onClose,
   onDone,
 }: {
   client: ClientSummary;
   slug: string;
   defaultLimit: number;
+  pricing: Pricing;
   onClose: () => void;
   onDone: (message: string) => void;
 }) {
@@ -200,6 +208,19 @@ function ClientDialog({
       </div>
       {tab === 'history' ? (
         <HistoryList slug={slug} clientId={client.id} />
+      ) : tab === 'cash' ? (
+        <CashForm
+          balance={client.balance}
+          pricing={pricing}
+          pending={pending}
+          onSave={(payload, summary) =>
+            run(
+              () => cashPaymentAction({ slug, clientId: client.id, ...payload }),
+              (result) =>
+                onDone(`Przyjęto gotówkę: ${client.displayName}, ${summary}. Na koncie: ${lessonsLabel(result.balance ?? 0)}.`),
+            )
+          }
+        />
       ) : tab === 'adjust' ? (
         <AdjustForm
           balance={client.balance}
@@ -317,7 +338,7 @@ function AdjustForm({
           type="text"
           maxLength={500}
           value={note}
-          placeholder="np. gotówka 900 zł za 5 lekcji"
+          placeholder="np. zwrot lekcji odwołanej przez szkołę"
           onChange={(e) => setNote(e.target.value)}
           required
         />
@@ -426,6 +447,111 @@ function ClientForm({
       <div className="modal-actions">
         <button type="submit" disabled={pending}>
           {pending ? 'Zapisuję…' : client ? 'Zapisz' : 'Dodaj parę'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** Wpłata gotówką: pakiet albo pojedyncze lekcje; kwota podpowiada się z cennika, ale można ją zmienić (np. rabat). */
+function CashForm({
+  balance,
+  pricing,
+  pending,
+  onSave,
+}: {
+  balance: number;
+  pricing: Pricing;
+  pending: boolean;
+  onSave: (payload: Omit<CashPayload, 'slug' | 'clientId'>, summary: string) => void;
+}) {
+  const SINGLE = 'single';
+  const suggestion = (choice: string, count: string): string => {
+    const pkg = pricing.packages.find((p) => p.id === choice);
+    if (pkg) return formatMoneyInput(pkg.priceCents);
+    const n = Number(count);
+    return pricing.lessonPriceCents !== null && Number.isInteger(n) && n > 0 ? formatMoneyInput(pricing.lessonPriceCents * n) : '';
+  };
+  const firstChoice = pricing.packages[0]?.id ?? SINGLE;
+  const [choice, setChoice] = useState(firstChoice);
+  const [count, setCount] = useState('1');
+  const [amount, setAmount] = useState(() => suggestion(firstChoice, '1'));
+  const [amountEdited, setAmountEdited] = useState(false);
+  const [note, setNote] = useState('');
+
+  const pkg = pricing.packages.find((p) => p.id === choice) ?? null;
+  const credits = pkg ? pkg.credits : Number(count);
+  const amountCents = parseMoney(amount);
+  const valid = Number.isInteger(credits) && credits >= 1 && credits <= 100 && amountCents !== null;
+  const summary = valid ? `${formatMoney(amountCents, pricing.currency)}${pkg ? `, ${pkg.name}` : ''}, +${lessonsLabel(credits)}` : '';
+  const change = (nextChoice: string, nextCount: string) => {
+    setChoice(nextChoice);
+    setCount(nextCount);
+    // Kwota idzie za cennikiem, dopóki szkoła sama jej nie zmieni.
+    if (!amountEdited) setAmount(suggestion(nextChoice, nextCount));
+  };
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!valid) return;
+        onSave({ packageId: pkg?.id ?? null, credits: pkg ? null : credits, amountCents, note }, summary);
+      }}
+    >
+      <div className="form-grid">
+        <label htmlFor="cash-what">Za co</label>
+        <select id="cash-what" value={choice} onChange={(e) => change(e.target.value, count)}>
+          {pricing.packages.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} · {lessonsLabel(p.credits)} · {formatMoney(p.priceCents, pricing.currency)}
+            </option>
+          ))}
+          <option value={SINGLE}>Pojedyncze lekcje</option>
+        </select>
+        {pkg ? null : (
+          <>
+            <label htmlFor="cash-count">Ile lekcji</label>
+            <input
+              id="cash-count"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={100}
+              value={count}
+              onChange={(e) => change(choice, e.target.value)}
+              required
+            />
+          </>
+        )}
+        <label htmlFor="cash-amount">Kwota</label>
+        <span className="unit-input">
+          <input
+            id="cash-amount"
+            type="text"
+            inputMode="decimal"
+            placeholder="np. 900"
+            value={amount}
+            onChange={(e) => {
+              setAmount(e.target.value);
+              setAmountEdited(true);
+            }}
+            required
+          />
+          zł
+        </span>
+        <label htmlFor="cash-note">Notatka</label>
+        <input id="cash-note" type="text" maxLength={500} placeholder="opcjonalnie" value={note} onChange={(e) => setNote(e.target.value)} />
+        <p className="muted small span-2">
+          Na koncie: {lessonsLabel(balance)}
+          {valid ? ` · po wpłacie: ${lessonsLabel(balance + credits)}` : ''}. Wpłata zapisuje, kto przyjął gotówkę, kwotę i liczbę
+          lekcji.
+          {pricing.packages.length === 0 ? ' Pakiety lekcji dodasz w Ustawieniach.' : ''}
+        </p>
+      </div>
+      <div className="modal-actions">
+        <button type="submit" disabled={pending || !valid}>
+          {pending ? 'Zapisuję…' : valid ? `Przyjmij gotówkę: ${summary}` : 'Przyjmij gotówkę'}
         </button>
       </div>
     </form>
