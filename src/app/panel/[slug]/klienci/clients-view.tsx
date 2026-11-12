@@ -323,7 +323,7 @@ function AdjustForm({
         />
         <p className="muted small span-2">
           Na koncie: {lessonsLabel(balance)}
-          {valid ? ` · po korekcie: ${lessonsLabel(balance + delta)}` : ''}. Korekta to nowy wpis w historii z Twoim imieniem i
+          {valid ? ` · po korekcie: ${lessonsLabel(balance + delta)}` : ''}. Korekta to nowy wpis w historii z autorem i
           notatką; wcześniejszych wpisów nie zmieniamy.
         </p>
       </div>

@@ -1,6 +1,6 @@
 # Decyzje projektu
 
-Wersja 0.4 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
+Wersja 0.5 z 12.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
 
 ## 1. Produkt
 
@@ -61,7 +61,7 @@ Wersja 0.4 z 11.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
 - Po tym terminie: status `late_cancelled` i lekcja przepada.
 - Lekcji, która już się zaczęła, nie można odwołać.
 - Szkoła odwołuje lekcję klienta według tych samych zasad i zapisuje, kto odwołał. Gdy lekcję odwołuje szkoła po terminie, a lekcja ma wrócić na konto, admin dopisuje korektę `adjustment` z notatką.
-- Nieobecność: status `no_show` i lekcja przepada.
+- Nieobecność: status `no_show` i lekcja przepada. Szkoła oznacza ją w kalendarzu od początku lekcji (zarezerwowanej albo odbytej). Pomyłkę można cofnąć: lekcja wraca do statusu sprzed oznaczenia.
 - Lekcja sama zmienia się na `completed` po swoim końcu (ustawienie `auto_complete_lessons`), chyba że admin oznaczy nieobecność.
 
 ### Reguły grafiku (ustawienia firmy w `organization_settings`)
@@ -128,11 +128,30 @@ Szkoła (właściciel, admin) ustawia grafik na osobnej stronie „Ustawienia gr
   - Wpis musi się kończyć w przyszłości i trwać najwyżej rok. Odwołany wpis zostaje w bazie z `active = false`.
 - **Reguły grafiku** w panelu: `back_to_back_slots`, `slot_step_minutes`, `buffer_minutes`, `min_gap_minutes`, `compact_days`, `min_notice_minutes` (w panelu w godzinach), `max_advance_days`, `cancel_deadline_hours` i `first_lesson_prepaid`. Wolne terminy liczą się według nich od razu; zarezerwowane lekcje zostają bez zmian.
   - Zakresy: lekcje co 5–240 min, przerwa 0–240 min, najkrótsza dziura 0–600 min, wyprzedzenie 0–720 h, horyzont 1–730 dni, termin odwołania 0–720 h.
-  - Ustawienia przypomnień, płatności i automatycznych statusów dojdą do panelu w etapach 4 i 5, a domyślny limit zaufanego w etapie 3c (`plan.md`).
+  - Domyślny limit zaufanej pary (`default_trusted_credit_limit`, 0–20 lekcji) jest w tych samych ustawieniach, w części „Klienci” (etap 3c).
+  - Ustawienia przypomnień, płatności i automatycznych statusów dojdą do panelu w etapach 4 i 5 (`plan.md`).
 - **Usługi:** nazwa, długość (5–600 min), ile lekcji zdejmuje z konta (1–10), wyłączanie i włączanie.
   - Nowa długość i koszt dotyczą nowych rezerwacji; zarezerwowane lekcje zostają bez zmian.
   - Ostatniej aktywnej usługi nie można wyłączyć, bo nikt nie mógłby zarezerwować lekcji.
   - Domyślna usługa w kalendarzu to pierwsza dodana; kolejne usługi są w kolejności dodania.
+
+### Klienci w panelu (etap 3c)
+
+Szkoła (właściciel, admin) prowadzi klientów na stronie „Klienci” (przycisk nad kalendarzem, obok „Ustawienia grafiku”). Lista par ma wyszukiwanie (nazwa, e-mail, telefon) i filtr „Na minusie”. Kliknięcie pary otwiera okienko z zakładkami „Historia”, „Korekta salda” i „Dane i status”. Inne osoby wracają z tej strony do kalendarza. Zasady pilnuje `src/lib/clients.ts`, a zmiany danych, statusu i nieobecności trafiają do dziennika (`audit_log`).
+
+- **Dodawanie pary:** nazwa, e-mail, telefon, data ślubu, notatki i status (domyślnie nowa).
+  - Z adresem e-mail para dostaje konto logowania (to samo, jeśli adres jest już w systemie) i od razu loguje się linkiem z maila. Bez adresu para nie ma konta, ale szkoła wpisuje jej lekcje.
+  - Adres e-mail i konto są unikalne w szkole, bez względu na wielkość liter.
+  - Zmiana adresu łączy profil z kontem nowego adresu. Usunięcie adresu nie odłącza konta, którym para już się loguje.
+- **Status i limit:** szkoła zmienia status ręcznie (nowy, stały, zaufany).
+  - Przy zmianie na zaufaną para dostaje domyślny limit firmy; szkoła może go zmienić (0–20 lekcji). Zaufana para przy zmianie samych danych zachowuje swój limit.
+  - Inny status zawsze ma limit 0, tak jak pilnuje baza. Para na minusie, która przestaje być zaufana, zostaje na minusie i nie zarezerwuje lekcji, dopóki saldo nie wróci do zera.
+- **Historia lekcji:** wszystkie wpisy salda od najnowszego, z terminem i stanem lekcji (np. odwołana, nieobecność), notatką, autorem i saldem po każdym wpisie.
+- **Korekta salda:** „Dopisz lekcje” albo „Odejmij lekcje”, 1–50 lekcji naraz, zawsze z notatką; zapisuje autora. To nowy wpis `adjustment`, historii nie zmieniamy.
+  - Do etapu 4 tak samo szkoła wpisuje gotówkę (np. notatka „gotówka 900 zł za 5 lekcji”).
+  - Korekta blokuje wiersz klienta, tak jak rezerwacja, więc obie zmiany salda tej pary w tej samej chwili czekają na siebie.
+- **Na minusie:** pary z saldem poniżej zera, od największego długu.
+- **Nieobecność:** w okienku lekcji w kalendarzu („Oznacz nieobecność”, „Cofnij nieobecność”), tylko dla szkoły. Okienko lekcji ma też link do historii i salda pary.
 
 ### Na później (poza wersją 1)
 
@@ -191,6 +210,6 @@ Etapy z listą rzeczy do zrobienia i stanem każdego z nich są w [plan.md](plan
 
 1. Model danych — gotowe (PR #1).
 2. Szkielet aplikacji i logowanie — gotowe (PR #2).
-3. Kalendarz i rezerwacje (3a) — gotowe (PR #3), ustawienia grafiku w panelu (3b) — gotowe (PR #4), klienci w panelu (3c).
+3. Kalendarz i rezerwacje (3a) — gotowe (PR #3), ustawienia grafiku w panelu (3b) — gotowe (PR #4), klienci w panelu (3c) — gotowe (PR #5).
 4. Płatności.
 5. Przypomnienia i zadania w tle.
