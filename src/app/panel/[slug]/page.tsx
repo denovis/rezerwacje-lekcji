@@ -61,9 +61,14 @@ export default async function FirmPage({
           <p className="muted small">Twoja rola: {firm.roles.map((role) => ROLE_LABELS[role]).join(', ')}</p>
         </div>
         {week?.isStaff ? (
-          <Link href={`/panel/${slug}/ustawienia`} className="pill">
-            Ustawienia grafiku
-          </Link>
+          <nav className="head-links" aria-label="Panel szkoły">
+            <Link href={`/panel/${slug}/klienci`} className="pill">
+              Klienci
+            </Link>
+            <Link href={`/panel/${slug}/ustawienia`} className="pill">
+              Ustawienia grafiku
+            </Link>
+          </nav>
         ) : null}
         {week?.isInstructor ? (
           <div className="balance">

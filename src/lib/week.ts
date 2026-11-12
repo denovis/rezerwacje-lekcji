@@ -25,6 +25,7 @@ import {
   lessonsLabel,
 } from './format';
 import { addDays, isLocalDate, isoWeekday, localDateOf, localTimeOf, localToInstant, timeToMinutes } from './local-time';
+import { canMarkNoShow } from './clients';
 import { periodLabel } from './schedule-setup';
 import {
   gridRange,
@@ -109,9 +110,17 @@ export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery 
       status: booking.status,
       statusLabel: BOOKING_STATUS_LABELS[booking.status],
       blocksCalendar: BLOCKING_STATUSES.includes(booking.status),
+      clientId: booking.clientId,
       clientName: booking.clientName,
       instructorName: booking.instructorName,
       serviceName: booking.serviceName,
+      noShow: !overview.isStaff
+        ? null
+        : booking.status === 'no_show'
+          ? 'undo'
+          : canMarkNoShow(booking.status, booking.startsAt, now)
+            ? 'mark'
+            : null,
       cancel: cancellable
         ? {
             refundable: now.getTime() <= deadline.getTime(),

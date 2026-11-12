@@ -133,6 +133,7 @@ export async function saveRulesAction(input: { slug: string; rules: ScheduleRule
       maxAdvanceDays: integer(r.maxAdvanceDays),
       cancelDeadlineHours: integer(r.cancelDeadlineHours),
       firstLessonPrepaid: r.firstLessonPrepaid === true,
+      defaultTrustedCreditLimit: integer(r.defaultTrustedCreditLimit),
     });
   });
 }

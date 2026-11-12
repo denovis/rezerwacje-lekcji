@@ -26,6 +26,8 @@ Dane startowe zakładają też instruktora z godzinami pracy pon–pt 16:00–21
 
 Instruktorów, godziny pracy, urlopy, reguły grafiku i usługi zmienia właściciel w panelu: przycisk „Ustawienia grafiku” nad kalendarzem. Żeby zobaczyć kalendarz instruktora, wpisz tam przy instruktorze dowolny adres (np. `instruktor@example.com`) i zaloguj się nim.
 
+Pary, ich status, historię lekcji, korekty salda i osoby na minusie właściciel prowadzi na stronie „Klienci” (przycisk obok „Ustawienia grafiku”). Nieobecność oznacza się w okienku lekcji w kalendarzu.
+
 ## Testy
 
 ```bash

@@ -36,16 +36,17 @@ Strona „Ustawienia grafiku” (przycisk nad kalendarzem); wolne i dodatkowe go
 - [x] Kalendarz instruktora: podgląd jego lekcji.
 - [x] Commit i PR.
 
-### Etap 3c. Klienci w panelu szkoły: zaplanowane
+### Etap 3c. Klienci w panelu szkoły: gotowe (PR #5)
 
-Te punkty są w zakresie wersji 1 (panel admina), ale wcześniej nie miały etapu.
+Strona „Klienci” (przycisk nad kalendarzem); nieobecność w okienku lekcji w kalendarzu.
 
-- [ ] Dodawanie pary (nazwa, e-mail); para loguje się potem tym adresem.
-- [ ] Zmiana statusu klienta (nowy, stały, zaufany) i limitu zejścia poniżej zera.
-- [ ] Historia lekcji klienta i ręczna korekta salda z notatką.
-- [ ] Lista osób na minusie.
-- [ ] Oznaczanie nieobecności.
-- [ ] Domyślny limit zaufanego klienta (`default_trusted_credit_limit`) w ustawieniach (dopisane w etapie 3b: jest w bazie, nie ma go jeszcze w panelu).
+- [x] Dodawanie pary (nazwa, e-mail, telefon, data ślubu, notatki); para loguje się potem tym adresem.
+- [x] Zmiana statusu klienta (nowy, stały, zaufany) i limitu zejścia poniżej zera.
+- [x] Historia lekcji klienta i ręczna korekta salda z notatką.
+- [x] Lista osób na minusie.
+- [x] Oznaczanie nieobecności (i cofanie pomyłki).
+- [x] Domyślny limit zaufanego klienta (`default_trusted_credit_limit`) w ustawieniach grafiku, w części „Klienci”.
+- [x] Commit i PR.
 
 ### Pierwsze wdrożenie (po etapie 3)
 
@@ -78,6 +79,7 @@ Te punkty są w zakresie wersji 1 (panel admina), ale wcześniej nie miały etap
 - SMS, synchronizacja z Google Calendar, vouchery, eksport do Excela albo na endpoint.
 - Nadpisywanie reguł grafiku dla instruktora albo usługi.
 - Dostęp do panelu (zauważone w etapie 3b): dodawanie administratorów i odbieranie roli. Wyłączony instruktor albo instruktor bez adresu e-mail zachowuje rolę w firmie, ale nie widzi już żadnych lekcji.
+- Klienci (zauważone w etapie 3c): dodanie nowej pary prosto z okienka „Nowa lekcja” w kalendarzu; oznaczanie nieobecności przez instruktora na jego lekcjach; ukrywanie par, które skończyły kurs (tabela `clients` nie ma jeszcze flagi `active`).
 - Godziny pracy instruktorów w tle kalendarza szkoły (np. szare tło poza godzinami pracy) i zaznaczanie wolnego przeciągnięciem po siatce.
 - Stripe Connect i zakładanie firm przez stronę.
 - Do sprawdzenia przed sprzedażą:

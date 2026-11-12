@@ -126,6 +126,16 @@ describe('Kalendarz tygodniowy', () => {
     );
   });
 
+  it('szkoła widzi w kalendarzu oznaczanie nieobecności dopiero od początku lekcji, a klient wcale', async () => {
+    const staffWeek = await loadWeek(db, staff, { week: MONDAY, now: at('16:10') });
+    expect(staffWeek?.lessons.filter((l) => l.date === MONDAY).map((l) => [l.timeLabel, l.noShow])).toEqual([
+      ['16:00–16:45', 'mark'],
+      ['17:30–18:15', null],
+    ]);
+    const clientWeek = await loadWeek(db, asAnna, { week: MONDAY, now: at('16:10') });
+    expect(clientWeek?.lessons.map((l) => l.noShow)).toEqual([null]);
+  });
+
   it('godziny w kalendarzu obejmują godziny pracy i lekcję wpisaną poza nimi', async () => {
     const week = await loadWeek(db, staff, { week: MONDAY, now: NOW });
     expect(week?.range).toEqual({ start: 12 * 60, end: 21 * 60 });
