@@ -1,6 +1,6 @@
 # Decyzje projektu
 
-Wersja 0.5 z 12.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
+Wersja 0.6 z 12.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
 
 ## 1. Produkt
 
@@ -172,10 +172,12 @@ Lista pomysłów na później jest w [plan.md](plan.md), razem z etapami wersji 
 - **Maile:** wysyłka przez SMTP (nodemailer). Lokalnie Mailpit z docker-compose łapie wszystkie maile.
 - **Testy:** Vitest na prawdziwym PostgreSQL (`docker compose`). Każda reguła biznesowa ma test nazwany jak reguła, po polsku. Kod pisze głównie AI, więc testy są głównym narzędziem kontroli. Na GitHubie przy każdym PR działają: sprawdzenie typów, testy, zgodność typów bazy i budowanie aplikacji.
 - **Język w kodzie:** identyfikatory po angielsku; komentarze, dokumentacja i interfejs po polsku.
-- **Do wyboru przed pierwszym wdrożeniem (po etapie 3):**
-  - hosting aplikacji i bazy,
-  - dostawca maili (wysyłka idzie przez SMTP, więc zmiana to tylko ustawienia),
-  - domena szkoły do wysyłki maili.
+- **Wdrożenie (ustalone 12.11.2026):**
+  - Na razie bez serwera w internecie: aplikacja działa lokalnie na komputerze właściciela (baza w Dockerze, `npm run dev` albo `npm run build && npm start`).
+  - Przeniesienie później: kopia bazy (`pg_dump` / `pg_restore`) i te same zmienne środowiskowe na nowym serwerze. Nic w kodzie nie wiąże aplikacji z komputerem właściciela.
+  - Gdy przyjdzie czas, polecany hosting to Render (Frankfurt): aplikacja i baza z kopiami w UE, bez administrowania serwerem. Do sprawdzenia przy zakładaniu: czy konto bazy może założyć rolę `app_user` (RLS) i rozszerzenia `btree_gist`, `citext`.
+  - Maile: Brevo (UE, SMTP, za darmo do 300 maili dziennie). Lokalnie dalej Mailpit; żeby maile wychodziły naprawdę, wystarczy wpisać SMTP Brevo w `SMTP_URL`.
+  - Domena: na start bez własnej domeny; dodamy ją przy wdrożeniu (maile z własnej domeny rzadziej trafiają do spamu).
 
 ## 4. Wiele firm w jednej bazie
 
@@ -211,5 +213,5 @@ Etapy z listą rzeczy do zrobienia i stanem każdego z nich są w [plan.md](plan
 1. Model danych — gotowe (PR #1).
 2. Szkielet aplikacji i logowanie — gotowe (PR #2).
 3. Kalendarz i rezerwacje (3a) — gotowe (PR #3), ustawienia grafiku w panelu (3b) — gotowe (PR #4), klienci w panelu (3c) — gotowe (PR #5).
-4. Płatności.
+4. Płatności: ceny, pakiety i gotówka (4a), płatności online przez Stripe (4b), samodzielna rejestracja nowej pary (4c).
 5. Przypomnienia i zadania w tle.
