@@ -15,6 +15,7 @@ import { actorOf, type FirmContext } from './bookings';
 import { withTenant, type Database, type Tx } from './db';
 import type { Json } from './db-types';
 import { formatDay, formatTime } from './format';
+import { addDays, isoWeekday, localDateOf } from './local-time';
 import type { CheckoutEvent, CheckoutRequest, CheckoutSession } from './stripe-gateway';
 
 const MESSAGES = {
@@ -270,7 +271,7 @@ export function checkoutRequestFor(
   db: Database,
   ctx: FirmContext,
   input: { paymentId: string },
-): Promise<Omit<CheckoutRequest, 'successUrl' | 'cancelUrl'>> {
+): Promise<Omit<CheckoutRequest, 'successUrl' | 'cancelUrl'> & { lessonWeek: string | null }> {
   return withTenant(db, ctx, async (tx) => {
     const actor = await actorOf(tx, ctx);
     const row = await tx
@@ -303,6 +304,9 @@ export function checkoutRequestFor(
         ? `${row.serviceName}, ${formatDay(row.startsAt, row.timezone)}, ${formatTime(row.startsAt, row.timezone)}`
         : (row.packageName ?? 'Lekcje');
     const expiresAt = row.holdExpiresAt ?? new Date(row.createdAt.getTime() + PACKAGE_CHECKOUT_MINUTES * MINUTE);
+    // Po powrocie ze strony płatności kalendarz pokazuje tydzień opłaconej lekcji (poniedziałek, RRRR-MM-DD).
+    const lessonDay = row.startsAt ? localDateOf(row.startsAt.getTime(), row.timezone) : null;
+    const lessonWeek = lessonDay ? addDays(lessonDay, 1 - isoWeekday(lessonDay)) : null;
     return {
       organizationId: ctx.organizationId,
       paymentId: row.id,
@@ -311,6 +315,7 @@ export function checkoutRequestFor(
       description,
       customerEmail: user?.email ?? null,
       expiresAt,
+      lessonWeek,
     };
   });
 }

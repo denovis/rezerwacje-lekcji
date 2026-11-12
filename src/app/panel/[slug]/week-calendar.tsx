@@ -4,6 +4,7 @@
 // Szkoła dodatkowo klika puste miejsce w siatce, żeby wpisać lekcję o dowolnej godzinie, wolne
 // albo dodatkowe godziny; wolne widać jako szary pas. Instruktor tylko ogląda swoje lekcje.
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import {
   layoutDay,
@@ -53,15 +54,16 @@ export function WeekCalendar({
   const [message, setMessage] = useToast();
 
   // Komunikat po powrocie ze strony płatności pokazujemy raz; adres bez ?platnosc=… nie pokaże go po odświeżeniu.
+  // Adres zmieniamy przez router Next.js, żeby kolejne odświeżenie danych (po akcji) nie przywróciło parametrów.
+  const router = useRouter();
   useEffect(() => {
     if (!notice) return;
     setMessage(notice);
     const url = new URL(window.location.href);
     url.searchParams.delete('platnosc');
     url.searchParams.delete('sesja');
-    window.history.replaceState(null, '', url.pathname + url.search);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- tylko raz, po wejściu na stronę
-  }, []);
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, []); // tylko raz, po wejściu na stronę
 
   const open = (state: DialogState) => setDialog(state);
   const canBookAt = (date: string, minutes: number) =>

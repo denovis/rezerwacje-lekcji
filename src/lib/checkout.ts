@@ -28,13 +28,14 @@ export async function openCheckout(
   slug: string,
   paymentId: string,
 ): Promise<string> {
-  const request = await checkoutRequestFor(db, ctx, { paymentId });
-  const back = `${baseUrl}/panel/${encodeURIComponent(slug)}`;
+  const { lessonWeek, ...request } = await checkoutRequestFor(db, ctx, { paymentId });
+  // Powrót do tygodnia opłaconej lekcji (przy pakiecie: do bieżącego tygodnia).
+  const back = `${baseUrl}/panel/${encodeURIComponent(slug)}?${lessonWeek ? `tydzien=${lessonWeek}&` : ''}`;
   try {
     const session = await gateway.createCheckout({
       ...request,
-      successUrl: `${back}?platnosc=ok&sesja=${SESSION_PLACEHOLDER}`,
-      cancelUrl: `${back}?platnosc=przerwana`,
+      successUrl: `${back}platnosc=ok&sesja=${SESSION_PLACEHOLDER}`,
+      cancelUrl: `${back}platnosc=przerwana`,
     });
     if (!session.url) throw new Error('Stripe nie zwrócił adresu strony płatności.');
     await attachCheckout(db, ctx, { paymentId, sessionId: session.id });

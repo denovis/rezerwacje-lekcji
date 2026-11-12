@@ -325,6 +325,7 @@ describe('Pakiet online i sesja płatności', () => {
       currency: 'PLN',
       description: 'Lekcja pierwszego tańca, poniedziałek, 11 stycznia, 16:00',
       expiresAt: lesson.payment!.holdExpiresAt,
+      lessonWeek: MONDAY, // po powrocie ze strony płatności kalendarz pokazuje tydzień lekcji
     });
     const params = checkoutParams({ ...request, successUrl: 'http://localhost/ok', cancelUrl: 'http://localhost/nie' });
     expect(params.allowed_payment_method_types).toEqual(['card', 'blik', 'p24']);

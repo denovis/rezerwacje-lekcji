@@ -644,6 +644,8 @@ a {
 /* Okienko (rezerwacja, szczegóły lekcji). */
 .modal {
   width: min(440px, calc(100vw - 32px));
+  /* Okienko może stać w ramce wyrównanej do prawej (np. saldo); treść zawsze od lewej. */
+  text-align: left;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 12px;
