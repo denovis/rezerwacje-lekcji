@@ -1,14 +1,24 @@
 'use client';
-// Strona ustawień grafiku: instruktorzy z godzinami pracy i wolnym, reguły grafiku i usługi.
+// Strona ustawień: instruktorzy z godzinami pracy i wolnym, reguły grafiku, usługi z ceną i pakiety lekcji.
 // Zmiany robimy w okienkach na miejscu (reguły w formularzu na stronie), a wynik pokazuje dymek na dole ekranu.
 import { useState } from 'react';
-import { describeWeeklyHours, formatLocalDay, pluralize, WEEKDAY_SHORT } from '../../../../lib/format';
+import {
+  describeWeeklyHours,
+  formatLocalDay,
+  formatMoney,
+  formatMoneyInput,
+  lessonsLabel,
+  parseMoney,
+  pluralize,
+  WEEKDAY_SHORT,
+} from '../../../../lib/format';
 import { addDays } from '../../../../lib/local-time';
 import type {
   ScheduleRules,
   ScheduleSetup,
   SetupException,
   SetupInstructor,
+  SetupPackage,
   SetupService,
   WorkRange,
 } from '../../../../lib/schedule-setup';
@@ -17,6 +27,7 @@ import {
   addExceptionAction,
   cancelExceptionAction,
   saveInstructorAction,
+  savePackageAction,
   saveRulesAction,
   saveServiceAction,
   setHoursAction,
@@ -28,7 +39,8 @@ type Dialog =
   | { type: 'hours'; instructor: SetupInstructor }
   | { type: 'new-exception'; instructor: SetupInstructor }
   | { type: 'exception'; instructor: SetupInstructor; exception: SetupException }
-  | { type: 'service'; service: SetupService | null };
+  | { type: 'service'; service: SetupService | null }
+  | { type: 'package'; pkg: SetupPackage | null };
 
 export function SettingsView({ setup, slug }: { setup: ScheduleSetup; slug: string }) {
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -48,6 +60,7 @@ export function SettingsView({ setup, slug }: { setup: ScheduleSetup; slug: stri
         <a href="#instruktorzy">Instruktorzy</a>
         <a href="#reguly">Reguły grafiku</a>
         <a href="#uslugi">Usługi</a>
+        <a href="#pakiety">Pakiety</a>
       </nav>
 
       <section id="instruktorzy" className="settings-section">
@@ -116,6 +129,7 @@ export function SettingsView({ setup, slug }: { setup: ScheduleSetup; slug: stri
                   <span className="muted small">
                     {' '}
                     · {service.durationMinutes} min · zdejmuje z konta {pluralize(service.creditCost, 'lekcję', 'lekcje', 'lekcji')}
+                    {service.priceCents !== null ? ` · ${formatMoney(service.priceCents, setup.currency)}` : ' · bez ceny'}
                   </span>
                 </span>
                 <span className="muted small">{service.active ? 'zmień ›' : 'wyłączona · zmień ›'}</span>
@@ -125,6 +139,35 @@ export function SettingsView({ setup, slug }: { setup: ScheduleSetup; slug: stri
         </ul>
       </section>
 
+      <section id="pakiety" className="settings-section">
+        <div className="section-head">
+          <h2>Pakiety lekcji</h2>
+          <button type="button" className="secondary" onClick={() => setDialog({ type: 'package', pkg: null })}>
+            + Dodaj pakiet
+          </button>
+        </div>
+        {setup.packages.length === 0 ? (
+          <p className="muted small">Brak pakietów. Pakiet to gotowa liczba lekcji w jednej cenie, np. 5 lekcji za 900 zł.</p>
+        ) : (
+          <ul className="row-list">
+            {setup.packages.map((pkg) => (
+              <li key={pkg.id}>
+                <button type="button" className="row-button" onClick={() => setDialog({ type: 'package', pkg })}>
+                  <span>
+                    <strong>{pkg.name}</strong>
+                    <span className="muted small">
+                      {' '}
+                      · {lessonsLabel(pkg.credits)} · {formatMoney(pkg.priceCents, setup.currency)}
+                    </span>
+                  </span>
+                  <span className="muted small">{pkg.active ? 'zmień ›' : 'wyłączony · zmień ›'}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {dialog ? <SettingsDialog key={dialogKey(dialog)} dialog={dialog} setup={setup} slug={slug} onClose={() => setDialog(null)} onDone={done} /> : null}
     </>
   );
@@ -132,6 +175,7 @@ export function SettingsView({ setup, slug }: { setup: ScheduleSetup; slug: stri
 
 function dialogKey(dialog: Dialog): string {
   if (dialog.type === 'service') return `service:${dialog.service?.id ?? 'new'}`;
+  if (dialog.type === 'package') return `package:${dialog.pkg?.id ?? 'new'}`;
   if (dialog.type === 'instructor') return `instructor:${dialog.instructor?.id ?? 'new'}`;
   if (dialog.type === 'exception') return `exception:${dialog.exception.id}`;
   return `${dialog.type}:${dialog.instructor.id}`;
@@ -246,6 +290,8 @@ function SettingsDialog({
     body = <HoursForm instructor={dialog.instructor} today={setup.today} slug={slug} pending={pending} run={run} onDone={onDone} />;
   } else if (dialog.type === 'service') {
     body = <ServiceForm service={dialog.service} slug={slug} pending={pending} run={run} onDone={onDone} />;
+  } else if (dialog.type === 'package') {
+    body = <PackageForm pkg={dialog.pkg} currency={setup.currency} slug={slug} pending={pending} run={run} onDone={onDone} />;
   } else if (dialog.type === 'exception') {
     const { exception, instructor } = dialog;
     body = (
@@ -497,6 +543,7 @@ function ServiceForm({ service, slug, pending, run, onDone }: FormProps & { serv
   const [name, setName] = useState(service?.name ?? '');
   const [duration, setDuration] = useState(String(service?.durationMinutes ?? 45));
   const [cost, setCost] = useState(String(service?.creditCost ?? 1));
+  const [price, setPrice] = useState(service?.priceCents != null ? formatMoneyInput(service.priceCents) : '');
   const save = (active: boolean, text: string) =>
     run(
       () =>
@@ -506,6 +553,8 @@ function ServiceForm({ service, slug, pending, run, onDone }: FormProps & { serv
           name,
           durationMinutes: Number(duration),
           creditCost: Number(cost),
+          // Puste pole: bez ceny; zła kwota trafia do serwera jako -1 i wraca z komunikatem o zakresie.
+          priceCents: price.trim() === '' ? null : (parseMoney(price) ?? -1),
           active,
         }),
       () => onDone(text),
@@ -552,6 +601,21 @@ function ServiceForm({ service, slug, pending, run, onDone }: FormProps & { serv
             />
             {pluralize(Number(cost) || 0, 'lekcję', 'lekcje', 'lekcji').replace(/^\S+ /, '')}
           </span>
+          <label htmlFor="service-price">Cena lekcji</label>
+          <span className="unit-input">
+            <input
+              id="service-price"
+              type="text"
+              inputMode="decimal"
+              placeholder="np. 180"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
+            zł
+          </span>
+          <p className="muted small span-2">
+            Cena pojedynczej lekcji: podpowiedź przy wpłacie gotówką, a od etapu 4b kwota płatności online. Puste pole: bez ceny.
+          </p>
           {service ? (
             <p className="muted small span-2">Nowa długość i koszt dotyczą nowych rezerwacji. Zarezerwowane lekcje zostają bez zmian.</p>
           ) : null}
@@ -741,3 +805,107 @@ function RulesForm({
   );
 }
 
+
+function PackageForm({
+  pkg,
+  currency,
+  slug,
+  pending,
+  run,
+  onDone,
+}: FormProps & { pkg: SetupPackage | null; currency: string }) {
+  const [name, setName] = useState(pkg?.name ?? '');
+  const [credits, setCredits] = useState(String(pkg?.credits ?? 5));
+  const [price, setPrice] = useState(pkg ? formatMoneyInput(pkg.priceCents) : '');
+  const priceCents = parseMoney(price);
+  const save = (active: boolean, text: string) =>
+    run(
+      () =>
+        savePackageAction({
+          slug,
+          packageId: pkg?.id,
+          name,
+          credits: Number(credits),
+          // Zła kwota trafia do serwera jako -1 i wraca z komunikatem o zakresie.
+          priceCents: priceCents ?? -1,
+          active,
+        }),
+      () => onDone(text),
+    );
+  const perLesson = priceCents !== null && Number(credits) > 0 ? Math.round(priceCents / Number(credits)) : null;
+
+  return (
+    <>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          save(pkg?.active ?? true, pkg ? `Zapisano pakiet: ${name.trim()}.` : `Dodano pakiet: ${name.trim()}.`);
+        }}
+      >
+        <h2>{pkg ? 'Pakiet lekcji' : 'Nowy pakiet lekcji'}</h2>
+        <div className="form-grid">
+          <label htmlFor="package-name">Nazwa</label>
+          <input
+            id="package-name"
+            type="text"
+            value={name}
+            maxLength={80}
+            placeholder="np. Pakiet 5 lekcji"
+            onChange={(e) => setName(e.target.value)}
+            required
+            autoFocus
+          />
+          <label htmlFor="package-credits">Lekcji w pakiecie</label>
+          <input
+            id="package-credits"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={100}
+            value={credits}
+            onChange={(e) => setCredits(e.target.value)}
+            required
+          />
+          <label htmlFor="package-price">Cena</label>
+          <span className="unit-input">
+            <input
+              id="package-price"
+              type="text"
+              inputMode="decimal"
+              placeholder="np. 900"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              required
+            />
+            zł
+          </span>
+          <p className="muted small span-2">
+            {perLesson !== null ? `Wychodzi ${formatMoney(perLesson, currency)} za lekcję. ` : ''}
+            {pkg ? 'Zmiana dotyczy kolejnych sprzedaży; wcześniejsze zostają z kwotą z chwili sprzedaży.' : ''}
+          </p>
+        </div>
+        <div className="modal-actions">
+          <button type="submit" disabled={pending}>
+            {pending ? 'Zapisuję…' : pkg ? 'Zapisz' : 'Dodaj pakiet'}
+          </button>
+        </div>
+      </form>
+      {pkg ? (
+        <div className="modal-actions">
+          {pkg.active ? (
+            <>
+              <p className="small">Wyłączonego pakietu nie da się sprzedać. Wcześniejsze sprzedaże zostają w historii.</p>
+              <button type="button" className="secondary danger-outline" disabled={pending} onClick={() => save(false, `Wyłączono pakiet: ${name.trim()}.`)}>
+                Wyłącz pakiet
+              </button>
+            </>
+          ) : (
+            <button type="button" className="secondary" disabled={pending} onClick={() => save(true, `Włączono pakiet: ${name.trim()}.`)}>
+              Włącz pakiet
+            </button>
+          )}
+        </div>
+      ) : null}
+    </>
+  );
+}

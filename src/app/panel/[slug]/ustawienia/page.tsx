@@ -6,9 +6,9 @@ import { requireFirm, requireUser } from '../../../../lib/session';
 import { LogoutButton } from '../../logout-button';
 import { SettingsView } from './settings-view';
 
-export const metadata = { title: 'Ustawienia grafiku · Rezerwacje lekcji' };
+export const metadata = { title: 'Ustawienia · Rezerwacje lekcji' };
 
-/** Ustawienia grafiku szkoły: instruktorzy z godzinami pracy i wolnym, reguły grafiku i usługi (tylko dla szkoły). */
+/** Ustawienia szkoły: instruktorzy z godzinami pracy i wolnym, reguły grafiku, usługi z ceną i pakiety (tylko dla szkoły). */
 export default async function SettingsPage({ params }: { params: Promise<{ slug: string }> }) {
   const user = await requireUser();
   const { slug } = await params;
@@ -24,7 +24,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ slug:
           <p className="small">
             <Link href={`/panel/${slug}`}>← Kalendarz</Link>
           </p>
-          <h1>Ustawienia grafiku</h1>
+          <h1>Ustawienia</h1>
           <p className="muted small">{firm.name}</p>
         </div>
       </header>

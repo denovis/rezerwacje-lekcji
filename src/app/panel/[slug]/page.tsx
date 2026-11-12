@@ -66,7 +66,7 @@ export default async function FirmPage({
               Klienci
             </Link>
             <Link href={`/panel/${slug}/ustawienia`} className="pill">
-              Ustawienia grafiku
+              Ustawienia
             </Link>
           </nav>
         ) : null}

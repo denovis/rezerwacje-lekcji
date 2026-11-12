@@ -783,6 +783,12 @@ button.danger-outline {
   margin-bottom: 14px;
 }
 
+/* Na wąskim ekranie przyciski przełącznika mogą się zwęzić i zawinąć tekst, zamiast wystawać poza okienko. */
+.dialog-kinds button {
+  min-width: 0;
+  padding: 8px 6px;
+}
+
 /* Wolne i dodatkowe godziny w kalendarzu: pasy w tle dnia. */
 .swatch-off {
   background: repeating-linear-gradient(135deg, var(--off) 0 3px, var(--off-stripe) 3px 6px);
@@ -1060,7 +1066,7 @@ button.danger-outline {
   gap: 8px 14px;
 }
 
-/* Linki szkoły w nagłówku kalendarza: Klienci, Ustawienia grafiku. */
+/* Linki szkoły w nagłówku kalendarza: Klienci, Ustawienia. */
 .head-links {
   display: flex;
   flex-wrap: wrap;
@@ -1090,6 +1096,11 @@ textarea {
 .form-grid textarea,
 .form-grid select {
   width: 100%;
+}
+
+/* Pole z jednostką (zł, min) zostaje wąskie, żeby jednostka stała obok niego. */
+.form-grid .unit-input input {
+  width: 110px;
 }
 
 .clients-toolbar {

@@ -1,5 +1,5 @@
 'use server';
-// Akcje klientów: dodanie i zmiana pary, historia lekcji, korekta salda, nieobecność.
+// Akcje klientów: dodanie i zmiana pary, historia lekcji, korekta salda, wpłata gotówką, nieobecność.
 // Wywołują je strona Klienci i kalendarz; wynik (powodzenie albo komunikat po polsku) pokazują na miejscu.
 // Każda akcja sama sprawdza logowanie i dostęp do firmy; zasady pilnuje src/lib/clients.ts.
 import { revalidatePath } from 'next/cache';
@@ -16,6 +16,7 @@ import {
 } from '../../../lib/clients';
 import type { ClientStatus } from '../../../lib/db-types';
 import { findMyFirm } from '../../../lib/firms';
+import { PaymentError, recordCashPayment } from '../../../lib/payments';
 import { server } from '../../../lib/server';
 import { requireUser } from '../../../lib/session';
 
@@ -115,5 +116,40 @@ export async function clientHistoryAction(input: {
   } catch (err) {
     if (err instanceof ClientError) return { ok: false, error: err.message };
     throw err;
+  }
+}
+
+export interface CashPayload {
+  slug: string;
+  clientId: string;
+  /** Sprzedany pakiet; null: pojedyncze lekcje. */
+  packageId: string | null;
+  /** Liczba lekcji, gdy wpłata nie jest za pakiet. */
+  credits: number | null;
+  /** Kwota w groszach. */
+  amountCents: number;
+  note: string;
+}
+
+/** Wpłata gotówką: dopisuje lekcje na konto pary i zapisuje, kto przyjął i ile zł. */
+export async function cashPaymentAction(input: CashPayload): Promise<ClientResult> {
+  const slug = text(input?.slug);
+  const ctx = await firmContext(slug);
+  if (!ctx) return { ok: false, error: new ClientError('not_allowed').message };
+  try {
+    const result = await recordCashPayment(server().db, ctx, {
+      clientId: uuid(input.clientId),
+      packageId: input.packageId ? uuid(input.packageId) : null,
+      credits: typeof input.credits === 'number' ? input.credits : null,
+      amountCents: typeof input.amountCents === 'number' ? input.amountCents : Number.NaN,
+      note: text(input.note),
+    });
+    return { ok: true, balance: result.balance };
+  } catch (err) {
+    if (err instanceof ClientError || err instanceof PaymentError) return { ok: false, error: err.message };
+    throw err;
+  } finally {
+    revalidatePath(`/panel/${slug}`);
+    revalidatePath(`/panel/${slug}/klienci`);
   }
 }

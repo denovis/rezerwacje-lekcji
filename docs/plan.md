@@ -48,19 +48,34 @@ Strona „Klienci” (przycisk nad kalendarzem); nieobecność w okienku lekcji 
 - [x] Domyślny limit zaufanego klienta (`default_trusted_credit_limit`) w ustawieniach grafiku, w części „Klienci”.
 - [x] Commit i PR.
 
-### Pierwsze wdrożenie (po etapie 3)
+### Pierwsze wdrożenie: odłożone (decyzja 12.11.2026)
 
-- [ ] Wybór hostingu aplikacji i bazy, dostawcy maili i domeny szkoły ([decyzje.md](decyzje.md), „Technologia”).
+- [x] Decyzja ([decyzje.md](decyzje.md), „Technologia”): na razie aplikacja działa lokalnie; maile przez Brevo; na start bez domeny.
+- [ ] Wdrożenie na serwer (polecany Render, Frankfurt), gdy aplikacja ma działać dla par przez internet.
 
-### Etap 4. Płatności: zaplanowane
+### Etap 4a. Ceny, pakiety i gotówka: gotowe (PR #6)
+
+Etap 4 podzielony 12.11.2026 na trzy PR-y; 4a nie wymaga konta Stripe.
+
+- [x] W ustawieniach: cena pojedynczej lekcji w usłudze.
+- [x] Pakiety lekcji w ustawieniach: nazwa, liczba lekcji, cena; wyłączanie.
+- [x] Gotówka w panelu: kto przyjął, ile zł, ile lekcji (pakiet albo pojedyncze lekcje).
+- [x] Strona „Ustawienia grafiku” nazywa się teraz „Ustawienia” (są tam też ceny i pakiety).
+- [x] Commit i PR.
+
+### Etap 4b. Płatności online (Stripe): zaplanowane
+
+Wymaga konta Stripe w trybie testowym (zakłada właściciel).
 
 - [ ] Stripe Checkout: BLIK, karta, Przelewy24.
 - [ ] Pierwsza lekcja nowej pary: termin czeka na płatność, a nieopłacony wraca do puli.
 - [ ] Kupno pakietu lekcji online.
 - [ ] Webhook Stripe: płatność dopisuje lekcje na konto (najwyżej raz).
-- [ ] Gotówka w panelu: kto przyjął, ile zł, ile lekcji.
-- [ ] Samodzielna rejestracja nowej pary na stronie szkoły (wcześniej bez etapu; pasuje tutaj, bo nowa para płaci za pierwszą lekcję online).
-- [ ] W ustawieniach: cena pojedynczej lekcji w usłudze i czas blokady terminu na płatność (`payment_hold_minutes`) (dopisane w etapie 3b).
+- [ ] W ustawieniach: czas blokady terminu na płatność (`payment_hold_minutes`) (dopisane w etapie 3b).
+
+### Etap 4c. Samodzielna rejestracja nowej pary: zaplanowane
+
+- [ ] Samodzielna rejestracja nowej pary na stronie szkoły (wcześniej bez etapu; pasuje po 4b, bo nowa para płaci za pierwszą lekcję online).
 
 ### Etap 5. Przypomnienia i zadania w tle: zaplanowane
 
