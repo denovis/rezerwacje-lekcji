@@ -53,6 +53,7 @@ const DEFAULT_RULES: ScheduleRules = {
   cancelDeadlineHours: 24,
   firstLessonPrepaid: true,
   defaultTrustedCreditLimit: 1,
+  paymentHoldMinutes: 30,
 };
 
 let owner: pg.Pool;
@@ -422,6 +423,9 @@ describe('Reguły grafiku', () => {
     expect(checkScheduleRules({ ...DEFAULT_RULES, minNoticeMinutes: 721 * 60 })).toBe('invalid_min_notice');
     expect(checkScheduleRules({ ...DEFAULT_RULES, cancelDeadlineHours: 1000 })).toBe('invalid_cancel_deadline');
     expect(checkScheduleRules({ ...DEFAULT_RULES, defaultTrustedCreditLimit: 21 })).toBe('invalid_trusted_limit');
+    // Stripe Checkout trwa od 30 minut do 24 godzin, więc blokada terminu też.
+    expect(checkScheduleRules({ ...DEFAULT_RULES, paymentHoldMinutes: 29 })).toBe('invalid_payment_hold');
+    expect(checkScheduleRules({ ...DEFAULT_RULES, paymentHoldMinutes: 1441 })).toBe('invalid_payment_hold');
 
     const firm = await createFirm();
     expect(await refusal(updateScheduleRules(db, firm.staff, { ...DEFAULT_RULES, minGapMinutes: 601 }))).toBe('invalid_min_gap');

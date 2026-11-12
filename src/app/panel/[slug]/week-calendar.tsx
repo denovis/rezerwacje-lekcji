@@ -15,7 +15,7 @@ import {
 } from '../../../lib/week-layout';
 import { CalendarDialog, type DialogState } from './calendar-dialog';
 import { EXCEPTION_TITLES } from './exception-form';
-import { Toast, useToast } from './ui';
+import { Toast, useToast, type Message } from './ui';
 
 /** Wysokość minuty w siatce (godzina = 72 px). */
 const PX_PER_MINUTE = 1.2;
@@ -40,14 +40,28 @@ export function WeekCalendar({
   slug,
   view,
   links,
+  notice = null,
 }: {
   data: WeekData;
   slug: string;
   view: View;
   links: CalendarLinks;
+  /** Komunikat do pokazania po wejściu na stronę (np. po powrocie ze strony płatności). */
+  notice?: Message | null;
 }) {
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [message, setMessage] = useToast();
+
+  // Komunikat po powrocie ze strony płatności pokazujemy raz; adres bez ?platnosc=… nie pokaże go po odświeżeniu.
+  useEffect(() => {
+    if (!notice) return;
+    setMessage(notice);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('platnosc');
+    url.searchParams.delete('sesja');
+    window.history.replaceState(null, '', url.pathname + url.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tylko raz, po wejściu na stronę
+  }, []);
 
   const open = (state: DialogState) => setDialog(state);
   const canBookAt = (date: string, minutes: number) =>

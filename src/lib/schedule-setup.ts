@@ -45,6 +45,7 @@ const MESSAGES = {
   invalid_max_advance: 'Rezerwacje naprzód: od 1 do 730 dni.',
   invalid_cancel_deadline: 'Termin odwołania: od 0 do 720 godzin przed lekcją.',
   invalid_trusted_limit: 'Domyślny limit zaufanej pary: od 0 do 20 lekcji.',
+  invalid_payment_hold: 'Czas na płatność online: od 30 do 1440 minut (24 godziny).',
 } as const;
 
 export type SetupErrorCode = keyof typeof MESSAGES;
@@ -72,6 +73,8 @@ export interface ScheduleRules {
   firstLessonPrepaid: boolean;
   /** Domyślny limit zejścia poniżej zera dla pary, która zostaje zaufana. */
   defaultTrustedCreditLimit: number;
+  /** Jak długo termin pierwszej lekcji czeka na płatność online (Stripe: od 30 minut do 24 godzin). */
+  paymentHoldMinutes: number;
 }
 
 type NumericRule = { [K in keyof ScheduleRules]: ScheduleRules[K] extends number ? K : never }[keyof ScheduleRules];
@@ -85,6 +88,7 @@ const RULE_LIMITS: Record<NumericRule, [min: number, max: number, error: SetupEr
   maxAdvanceDays: [1, 730, 'invalid_max_advance'],
   cancelDeadlineHours: [0, 720, 'invalid_cancel_deadline'],
   defaultTrustedCreditLimit: [0, 20, 'invalid_trusted_limit'],
+  paymentHoldMinutes: [30, 1440, 'invalid_payment_hold'],
 };
 
 /** Pierwszy błąd w regułach grafiku albo null, gdy wszystkie wartości są w dozwolonych zakresach. */
@@ -318,6 +322,7 @@ export function loadScheduleSetup(db: Database, ctx: FirmContext, now: Date = ne
         'cancelDeadlineHours',
         'firstLessonPrepaid',
         'defaultTrustedCreditLimit',
+        'paymentHoldMinutes',
       ])
       .executeTakeFirstOrThrow();
 
@@ -629,6 +634,7 @@ export function updateScheduleRules(db: Database, ctx: FirmContext, rules: Sched
       cancelDeadlineHours: rules.cancelDeadlineHours,
       firstLessonPrepaid: Boolean(rules.firstLessonPrepaid),
       defaultTrustedCreditLimit: rules.defaultTrustedCreditLimit,
+      paymentHoldMinutes: rules.paymentHoldMinutes,
     };
     await tx.updateTable('organizationSettings').set(values).where('organizationId', '=', ctx.organizationId).execute();
     await audit(tx, ctx, 'settings.schedule_updated', 'organization_settings', ctx.organizationId, { ...values });

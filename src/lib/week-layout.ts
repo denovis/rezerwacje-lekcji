@@ -37,6 +37,8 @@ export interface CalendarLesson extends Timed {
   serviceName: string;
   /** Szkoła: „mark” — można oznaczyć nieobecność (lekcja już się zaczęła), „undo” — można ją cofnąć. */
   noShow: 'mark' | 'undo' | null;
+  /** Para: lekcja czeka na płatność online do tej godziny (można zapłacić albo zrezygnować). */
+  pendingPayment: { untilLabel: string; amountLabel: string | null } | null;
   /** Null: lekcji nie można już odwołać (zaczęła się, odbyła albo jest odwołana). */
   cancel: { refundable: boolean; deadlineLabel: string } | null;
 }
@@ -83,7 +85,16 @@ export interface WeekData {
   /** Sam instruktor: widzi lekcje, które prowadzi, tylko do podglądu (bez rezerwacji i odwołań). */
   isInstructor: boolean;
   /** Profil klienta zalogowanej osoby. */
-  client: { id: string; balance: number; balanceLabel: string; creditLimit: number } | null;
+  client: {
+    id: string;
+    balance: number;
+    balanceLabel: string;
+    creditLimit: number;
+    /** Nowa para bez lekcji na koncie płaci za pierwszą lekcję online (gdy szkoła ma płatności online). */
+    firstLessonPayment: { amountLabel: string; holdMinutes: number } | null;
+  } | null;
+  /** Pakiety, które para może kupić online (pusta lista: brak płatności online albo pakietów). */
+  onlinePackages: { id: string; name: string; creditsLabel: string; priceLabel: string }[];
   /** Najbliższe zaplanowane lekcje klienta (także w kolejnych tygodniach). */
   upcoming: { count: number; nextLabel: string; nextWeek: string } | null;
   /** Klienci do wyboru przy rezerwacji (tylko dla szkoły). */

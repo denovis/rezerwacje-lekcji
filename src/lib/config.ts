@@ -11,6 +11,10 @@ export interface AppConfig {
   smtpUrl: string | undefined;
   /** Nadawca maili. */
   mailFrom: string;
+  /** Klucz Stripe (sk_test_… lokalnie); bez niego płatności online są wyłączone. */
+  stripeSecretKey: string | undefined;
+  /** Sekret podpisu webhooków Stripe (whsec_…); bez niego webhook odrzuca zdarzenia. */
+  stripeWebhookSecret: string | undefined;
 }
 
 export function readConfig(env: Record<string, string | undefined> = process.env): AppConfig {
@@ -30,11 +34,28 @@ export function readConfig(env: Record<string, string | undefined> = process.env
   const authSecret = required('BETTER_AUTH_SECRET');
   if (authSecret.length < 32) throw new Error('BETTER_AUTH_SECRET musi mieć co najmniej 32 znaki.');
 
+  const baseUrl = required('BETTER_AUTH_URL');
+  const stripeSecretKey = env.STRIPE_SECRET_KEY || undefined;
+  if (stripeSecretKey && !/^(sk|rk)_(test|live)_/.test(stripeSecretKey)) {
+    throw new Error('STRIPE_SECRET_KEY musi zaczynać się od sk_test_ (klucz testowy) albo sk_live_.');
+  }
+  // Prawdziwe pieniądze tylko na serwerze z prawdziwym adresem, nigdy z komputera, na którym pracujemy.
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(baseUrl).hostname);
+  if (stripeSecretKey && /_live_/.test(stripeSecretKey) && local) {
+    throw new Error('Lokalnie używaj testowego klucza Stripe (sk_test_…), nie produkcyjnego.');
+  }
+  const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET || undefined;
+  if (stripeWebhookSecret && !stripeWebhookSecret.startsWith('whsec_')) {
+    throw new Error('STRIPE_WEBHOOK_SECRET musi zaczynać się od whsec_.');
+  }
+
   return {
     appDatabaseUrl,
-    baseUrl: required('BETTER_AUTH_URL'),
+    baseUrl,
     authSecret,
     smtpUrl: env.SMTP_URL || undefined,
     mailFrom: env.MAIL_FROM || 'Rezerwacje lekcji <rezerwacje@localhost>',
+    stripeSecretKey,
+    stripeWebhookSecret,
   };
 }

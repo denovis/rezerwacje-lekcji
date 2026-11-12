@@ -28,6 +28,14 @@ Instruktorów, godziny pracy, urlopy, reguły grafiku i usługi zmienia właści
 
 Pary, ich status, historię lekcji, korekty salda i osoby na minusie właściciel prowadzi na stronie „Klienci” (przycisk obok „Ustawienia”); tam też przyjmuje gotówkę. Nieobecność oznacza się w okienku lekcji w kalendarzu.
 
+### Płatności online (Stripe, tryb testowy)
+
+1. W panelu Stripe (tryb testowy) włącz metody płatności: karta, BLIK, Przelewy24.
+2. Do pliku `.env` wpisz klucz testowy: `STRIPE_SECRET_KEY=sk_test_…` (Developers → API keys → Secret key) i uruchom ponownie `npm run dev`.
+3. Ustaw cenę lekcji w usłudze (Ustawienia → Usługi). Nowa para bez lekcji rezerwuje wtedy z płatnością online, a para może kupić pakiet.
+4. Płatność testowa: karta `4242 4242 4242 4242` (dowolna przyszła data i CVC); BLIK i Przelewy24 mają w trybie testowym przyciski „zatwierdź” / „odrzuć”.
+5. Po powrocie ze strony płatności lekcje trafiają na konto od razu. Żeby działało też wygasanie płatności i potwierdzenia z opóźnieniem (BLIK, Przelewy24), uruchom Stripe CLI: `stripe listen --forward-to localhost:3000/api/stripe/webhook` i wpisany przez nie sekret dopisz do `.env` jako `STRIPE_WEBHOOK_SECRET=whsec_…`.
+
 ## Testy
 
 ```bash

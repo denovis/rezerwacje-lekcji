@@ -1,9 +1,13 @@
 import Link from 'next/link';
+import { syncReturnedCheckout } from '../../../lib/checkout';
 import { ROLE_LABELS } from '../../../lib/firms';
+import type { CheckoutOutcome } from '../../../lib/payments';
 import { server } from '../../../lib/server';
 import { requireFirm, requireUser } from '../../../lib/session';
 import { loadWeek } from '../../../lib/week';
 import { LogoutButton } from '../logout-button';
+import { BuyPackage } from './buy-package';
+import type { Message } from './ui';
 import { WeekCalendar, type CalendarLinks } from './week-calendar';
 
 export const metadata = { title: 'Kalendarz · Rezerwacje lekcji' };
@@ -11,6 +15,24 @@ export const metadata = { title: 'Kalendarz · Rezerwacje lekcji' };
 type SearchParams = Record<string, string | string[] | undefined>;
 
 const single = (value: string | string[] | undefined) => (typeof value === 'string' ? value : undefined);
+
+/** Komunikat po powrocie ze strony płatności Stripe (?platnosc=ok|przerwana). */
+function paymentNotice(result: string | undefined, outcome: CheckoutOutcome | null): Message | null {
+  if (result === 'przerwana') {
+    return {
+      kind: 'error',
+      text: 'Płatność przerwana. Jeśli rezerwowaliście lekcję, termin czeka jeszcze chwilę: kliknijcie ją, żeby zapłacić albo zrezygnować.',
+    };
+  }
+  if (result !== 'ok') return null;
+  if (outcome === 'waiting') {
+    return { kind: 'ok', text: 'Płatność jest w toku. Lekcje pojawią się na koncie, gdy bank ją potwierdzi.' };
+  }
+  if (outcome === 'late') {
+    return { kind: 'ok', text: 'Dziękujemy za płatność! Termin zdążył już wrócić do puli, więc lekcja czeka na Waszym koncie.' };
+  }
+  return { kind: 'ok', text: 'Dziękujemy za płatność! Lekcje są już na Waszym koncie.' };
+}
 
 export default async function FirmPage({
   params,
@@ -23,7 +45,24 @@ export default async function FirmPage({
   const { slug } = await params;
   const query = await searchParams;
   const { firm, ctx, hasOtherFirms } = await requireFirm(user, slug);
-  const week = await loadWeek(server().db, ctx, { week: single(query.tydzien), serviceId: single(query.usluga) });
+  const { db, payments } = server();
+
+  // Powrót ze strony płatności: sprawdzamy sesję w Stripe, żeby lekcje trafiły na konto od razu.
+  const paymentResult = single(query.platnosc);
+  const sessionId = single(query.sesja);
+  let outcome: CheckoutOutcome | null = null;
+  if (paymentResult === 'ok' && sessionId && payments) {
+    outcome = await syncReturnedCheckout(db, payments, firm.id, sessionId).catch((err: unknown) => {
+      console.error('Nie udało się sprawdzić płatności po powrocie:', err);
+      return null;
+    });
+  }
+
+  const week = await loadWeek(db, ctx, {
+    week: single(query.tydzien),
+    serviceId: single(query.usluga),
+    onlinePayments: payments !== null,
+  });
   const view = single(query.widok) === 'lista' ? 'list' : 'calendar';
 
   // Adres strony z wybranym tygodniem, widokiem i usługą (domyślne wartości pomijamy).
@@ -89,6 +128,7 @@ export default async function FirmPage({
           <div className="balance">
             <span className="muted small">Na koncie</span>
             <strong>{week.client.balanceLabel}</strong>
+            {week.onlinePackages.length > 0 ? <BuyPackage slug={slug} packages={week.onlinePackages} /> : null}
             {week.upcoming ? (
               <span className="small">
                 Najbliższa lekcja:{' '}
@@ -119,11 +159,11 @@ export default async function FirmPage({
       ) : null}
 
       {week && links ? (
-        <WeekCalendar data={week} slug={slug} view={view} links={links} />
+        <WeekCalendar data={week} slug={slug} view={view} links={links} notice={paymentNotice(paymentResult, outcome)} />
       ) : (
         <p className="muted">
           Kalendarz widzą klienci, szkoła i instruktorzy. Jeśli prowadzisz lekcje, poproś szkołę o wpisanie Twojego adresu
-          e-mail przy instruktorze w ustawieniach grafiku. Jeśli chcesz rezerwować lekcje, poproś szkołę o założenie profilu
+          e-mail przy instruktorze w ustawieniach. Jeśli chcesz rezerwować lekcje, poproś szkołę o założenie profilu
           klienta.
         </p>
       )}

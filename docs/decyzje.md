@@ -1,6 +1,6 @@
 # Decyzje projektu
 
-Wersja 0.6 z 12.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
+Wersja 0.7 z 12.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
 
 ## 1. Produkt
 
@@ -47,11 +47,21 @@ Wersja 0.6 z 12.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
 
 ### Płatności
 
+- **Płatności online (etap 4b):** Stripe Checkout z kartą, BLIK-iem i Przelewy24 (metody włącza się w panelu Stripe; BLIK i Przelewy24 tylko w PLN). Bez `STRIPE_SECRET_KEY` płatności online są wyłączone, a nowa para bez lekcji dostaje informację, żeby skontaktowała się ze szkołą.
+  - Lokalnie aplikacja nie wystartuje z produkcyjnym kluczem Stripe (`sk_live_`), tylko z testowym.
+  - Kod zna Stripe tylko przez `src/lib/stripe-gateway.ts`; zasady płatności są w `src/lib/payments.ts` i mają testy na prawdziwej bazie bez łączenia się ze Stripe.
 - **Pierwsza lekcja nowego klienta:**
-  - rezerwacja dostaje status `pending_payment` i trzyma termin;
-  - sesja Stripe Checkout wygasa po `payment_hold_minutes`, co najmniej 30 minut, bo tyle wynosi minimum `expires_at` w Stripe;
-  - zdarzenie `checkout.session.expired` zmienia rezerwację na `expired` i termin wraca do puli;
-  - płatność, która dotrze po zwolnieniu terminu, trafia na konto klienta jako lekcja do wykorzystania, a admin dostaje alert.
+  - rezerwacja dostaje status `pending_payment` i trzyma termin przez `payment_hold_minutes` (30–1440, w Ustawieniach) plus minutę zapasu na założenie sesji;
+  - kwota to cena lekcji z usługi; bez ceny nowa para dostaje odmowę z informacją o płatności online;
+  - sesja Stripe Checkout kończy się razem z blokadą terminu (Stripe wymaga od 30 minut do 24 godzin);
+  - po zapłacie rezerwacja jest zarezerwowana, a w historii są dwa wpisy: +lekcja z płatności i −lekcja za rezerwację (saldo bez zmian);
+  - zdarzenie `checkout.session.expired` albo nieudana płatność (`async_payment_failed`) zmienia rezerwację na `expired` i termin wraca do puli; blokada, której czas minął, i tak nie zajmuje terminu, a przy kolejnej rezerwacji zmienia się na `expired`;
+  - para może dokończyć płatność („Zapłać”) albo zrezygnować („Zrezygnuj z lekcji”) w okienku lekcji; rezygnacja od razu zwalnia termin i zamyka sesję w Stripe;
+  - płatność, która dotrze po zwolnieniu terminu, trafia na konto klienta jako lekcja do wykorzystania, a w dzienniku zostaje wpis `payment.late`. Widoczny alert dla szkoły jest w planie (etap 5).
+  - Szkoła nie wpisuje nowej parze lekcji z płatnością online: wtedy przyjmuje gotówkę (zakładka „Wpłata”).
+- **Pakiet online (etap 4b):** para kupuje pakiet przyciskiem „Kup pakiet lekcji” pod saldem. Płatność czeka godzinę; lekcje trafiają na konto po zapłacie.
+- **Potwierdzenie płatności:** przychodzi webhookiem (`/api/stripe/webhook`, podpis sprawdzany sekretem `STRIPE_WEBHOOK_SECRET`) i dodatkowo przy powrocie pary ze strony płatności (aplikacja pyta Stripe o sesję). Oba są odporne na powtórzenia: płatność zmienia się na opłaconą raz, a unikalny indeks w bazie nie dopuści drugiego wpisu `purchase`. BLIK i Przelewy24 mogą potwierdzić się później (`async_payment_succeeded`); do tego czasu lekcja czeka.
+  - Firmę i płatność wskazują metadane sesji, które ustawia tylko nasz serwer; zdarzenie z sesją innej płatności jest pomijane.
 - **Gotówka (etap 4a):** szkoła przyjmuje ją na stronie Klienci, w okienku pary, zakładka „Wpłata”.
   - Za pakiet albo za pojedyncze lekcje (1–100). Kwota (0–100 000 zł) podpowiada się z ceny pakietu albo z ceny lekcji razy liczba lekcji, ale szkoła może ją zmienić (np. rabat; 0 zł to lekcja gratis).
   - Wpłata to opłacona płatność `cash` z osobą, która przyjęła, kwotą, liczbą lekcji i pakietem oraz wpis `purchase` +N w historii. Blokuje wiersz klienta jak rezerwacja i korekta.

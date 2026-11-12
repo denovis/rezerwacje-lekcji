@@ -63,15 +63,16 @@ Etap 4 podzielony 12.11.2026 na trzy PR-y; 4a nie wymaga konta Stripe.
 - [x] Strona „Ustawienia grafiku” nazywa się teraz „Ustawienia” (są tam też ceny i pakiety).
 - [x] Commit i PR.
 
-### Etap 4b. Płatności online (Stripe): zaplanowane
+### Etap 4b. Płatności online (Stripe): gotowe (PR #7)
 
 Wymaga konta Stripe w trybie testowym (zakłada właściciel).
 
-- [ ] Stripe Checkout: BLIK, karta, Przelewy24.
-- [ ] Pierwsza lekcja nowej pary: termin czeka na płatność, a nieopłacony wraca do puli.
-- [ ] Kupno pakietu lekcji online.
-- [ ] Webhook Stripe: płatność dopisuje lekcje na konto (najwyżej raz).
-- [ ] W ustawieniach: czas blokady terminu na płatność (`payment_hold_minutes`) (dopisane w etapie 3b).
+- [x] Stripe Checkout: BLIK, karta, Przelewy24.
+- [x] Pierwsza lekcja nowej pary: termin czeka na płatność, a nieopłacony wraca do puli; para może dokończyć płatność albo zrezygnować.
+- [x] Kupno pakietu lekcji online.
+- [x] Webhook Stripe: płatność dopisuje lekcje na konto (najwyżej raz); to samo sprawdzenie przy powrocie ze strony płatności.
+- [x] W ustawieniach: czas blokady terminu na płatność (`payment_hold_minutes`) (dopisane w etapie 3b).
+- [x] Commit i PR.
 
 ### Etap 4c. Samodzielna rejestracja nowej pary: zaplanowane
 
@@ -83,6 +84,7 @@ Wymaga konta Stripe w trybie testowym (zakłada właściciel).
 - [ ] Wygasanie blokad terminu na czas płatności.
 - [ ] Lekcja po swoim końcu zmienia się na „odbytą”.
 - [ ] Para po pierwszej odbytej lekcji staje się stała.
+- [ ] Alert dla szkoły o płatności, która dotarła po zwolnieniu terminu (dziś tylko wpis payment.late w dzienniku) (dopisane w etapie 4b).
 - [ ] W ustawieniach: kiedy wysłać przypomnienie i włączanie automatycznych zmian statusów (`reminder_hours_before`, `auto_complete_lessons`, `auto_promote_after_first_lesson`) (dopisane w etapie 3b).
 
 ## Na później (po wersji 1)
