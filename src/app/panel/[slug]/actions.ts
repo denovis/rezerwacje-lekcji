@@ -5,12 +5,16 @@
 import { revalidatePath } from 'next/cache';
 import { bookingErrorMessage, bookLesson, BookingError, cancelBooking, type FirmContext } from '../../../lib/bookings';
 import { firmTimeZone } from '../../../lib/calendar';
+import { openCheckout } from '../../../lib/checkout';
 import { findMyFirm } from '../../../lib/firms';
 import { isLocalDate, localToInstant, timeToMinutes } from '../../../lib/local-time';
+import { PaymentError } from '../../../lib/payments';
 import { server } from '../../../lib/server';
 import { requireUser } from '../../../lib/session';
 
-export type ActionResult = { ok: true; refunded?: boolean } | { ok: false; error: string };
+export type ActionResult =
+  | { ok: true; refunded?: boolean; /** Pierwsza lekcja: adres strony płatności Stripe. */ checkoutUrl?: string }
+  | { ok: false; error: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -54,11 +58,15 @@ export async function bookAction(input: BookInput): Promise<ActionResult> {
   }
   if (Number.isNaN(startsAt.getTime())) return failure('invalid_time');
 
+  const { db, payments, baseUrl } = server();
   try {
-    await bookLesson(server().db, ctx, { clientId, instructorId, serviceId, startsAt });
-    return { ok: true };
+    const lesson = await bookLesson(db, ctx, { clientId, instructorId, serviceId, startsAt, payOnline: payments !== null });
+    if (!lesson.payment || !payments) return { ok: true };
+    // Pierwsza lekcja nowej pary: termin czeka na płatność, a para przechodzi na stronę płatności Stripe.
+    return { ok: true, checkoutUrl: await openCheckout(db, payments, baseUrl, ctx, slug, lesson.payment.paymentId) };
   } catch (err) {
     if (err instanceof BookingError) return failure(err.code);
+    if (err instanceof PaymentError) return { ok: false, error: err.message };
     throw err;
   } finally {
     // Kalendarz pobiera świeże dane także po odmowie (np. ktoś właśnie zajął termin).

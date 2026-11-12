@@ -20,10 +20,13 @@ export interface FirmOverview {
   client: ClientProfile | null;
   /** Aktywny instruktor połączony z kontem zalogowanej osoby (jej własny grafik). */
   instructor: { id: string; name: string } | null;
-  services: { id: string; name: string; durationMinutes: number; creditCost: number }[];
+  services: { id: string; name: string; durationMinutes: number; creditCost: number; priceCents: number | null }[];
   instructors: { id: string; name: string }[];
   timeZone: string;
   cancelDeadlineHours: number;
+  firstLessonPrepaid: boolean;
+  paymentHoldMinutes: number;
+  currency: string;
 }
 
 /** Aktywny instruktor połączony z kontem zalogowanej osoby (instructors.user_id). */
@@ -53,7 +56,7 @@ export function firmOverview(db: Database, ctx: FirmContext): Promise<FirmOvervi
       : undefined;
     const services = await tx
       .selectFrom('services')
-      .select(['id', 'name', 'durationMinutes', 'creditCost'])
+      .select(['id', 'name', 'durationMinutes', 'creditCost', 'priceCents'])
       .where('active', '=', true)
       // Pierwsza dodana usługa jest domyślna w kalendarzu; nowe usługi dochodzą za nią.
       .orderBy('createdAt')
@@ -74,6 +77,9 @@ export function firmOverview(db: Database, ctx: FirmContext): Promise<FirmOvervi
       instructors,
       timeZone: rules.timeZone,
       cancelDeadlineHours: rules.cancelDeadlineHours,
+      firstLessonPrepaid: rules.firstLessonPrepaid,
+      paymentHoldMinutes: rules.paymentHoldMinutes,
+      currency: (await tx.selectFrom('organizations').select('currency').where('id', '=', ctx.organizationId).executeTakeFirstOrThrow()).currency,
     };
   });
 }
@@ -92,6 +98,10 @@ export interface BookingRow {
   clientName: string;
   instructorName: string;
   serviceName: string;
+  /** Czeka na płatność do tej chwili (pending_payment). */
+  holdExpiresAt: Date | null;
+  /** Kwota płatności online za tę lekcję (w groszach), jeśli jest. */
+  paymentAmountCents: number | null;
 }
 
 export interface BookingFilter {
@@ -125,6 +135,7 @@ export function listBookings(db: Database, ctx: FirmContext, filter: BookingFilt
       .innerJoin('clients as c', 'c.id', 'b.clientId')
       .innerJoin('instructors as i', 'i.id', 'b.instructorId')
       .innerJoin('services as s', 's.id', 'b.serviceId')
+      .leftJoin('payments as p', 'p.id', 'b.paymentId')
       .select([
         'b.id',
         'b.startsAt',
@@ -134,6 +145,8 @@ export function listBookings(db: Database, ctx: FirmContext, filter: BookingFilt
         'c.displayName as clientName',
         'i.name as instructorName',
         's.name as serviceName',
+        'b.holdExpiresAt',
+        'p.amountCents as paymentAmountCents',
       ])
       .where('b.startsAt', '>=', filter.from)
       .where('b.status', 'in', filter.statuses ?? VISIBLE_STATUSES);
@@ -142,6 +155,22 @@ export function listBookings(db: Database, ctx: FirmContext, filter: BookingFilt
     if (instructor) query = query.where('b.instructorId', '=', instructor.id);
     return query.orderBy('b.startsAt').orderBy('i.name').execute();
   });
+}
+
+/** Aktywne pakiety lekcji firmy, w kolejności dodania (do kupienia online przez parę). */
+export function activePackages(
+  db: Database,
+  ctx: FirmContext,
+): Promise<{ id: string; name: string; credits: number; priceCents: number }[]> {
+  return withTenant(db, ctx, (tx) =>
+    tx
+      .selectFrom('packages')
+      .select(['id', 'name', 'credits', 'priceCents'])
+      .where('organizationId', '=', ctx.organizationId)
+      .where('active', '=', true)
+      .orderBy('createdAt')
+      .execute(),
+  );
 }
 
 export interface ExceptionRow {

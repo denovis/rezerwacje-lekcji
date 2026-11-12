@@ -4,6 +4,7 @@
 import { sql } from 'kysely';
 import { BLOCKING_STATUSES, cancelDeadline, listFreeSlots, type FirmContext, type OpenSlot } from './bookings';
 import {
+  activePackages,
   firmOverview,
   listBookings,
   listClients,
@@ -11,6 +12,7 @@ import {
   type BookingRow,
   type ClientListItem,
   type ExceptionRow,
+  type FirmOverview,
 } from './calendar';
 import { withTenant, type Database } from './db';
 import type { BookingStatus } from './db-types';
@@ -19,6 +21,7 @@ import {
   CLIENT_STATUS_LABELS,
   formatDate,
   formatDay,
+  formatMoney,
   formatTime,
   formatWeekdayShort,
   formatWeekRange,
@@ -55,6 +58,8 @@ export interface WeekQuery {
   /** Dowolny dzień tygodnia (RRRR-MM-DD); domyślnie dzisiejszy tydzień. */
   week?: string;
   serviceId?: string;
+  /** Szkoła ma płatności online (klucz Stripe): nowa para płaci za pierwszą lekcję online i może kupić pakiet. */
+  onlinePayments?: boolean;
   now?: Date;
 }
 
@@ -95,11 +100,17 @@ export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery 
     workHoursRange(db, ctx, today, asInstructor ? overview.instructor?.id : undefined),
     overview.isStaff ? listExceptions(db, ctx, weekRange) : Promise.resolve<ExceptionRow[]>([]),
   ]);
+  const packages = overview.client && query.onlinePayments ? await activePackages(db, ctx) : [];
 
   const lessons = bookings.map((booking): CalendarLesson => {
     const date = localDateOf(booking.startsAt.getTime(), timeZone);
     const deadline = cancelDeadline(booking.startsAt, overview.cancelDeadlineHours);
     const cancellable = !asInstructor && booking.status === 'confirmed' && booking.startsAt > now;
+    // Blokada na czas płatności, która już minęła, nie trzyma terminu, choć w bazie zmieni się na „expired”
+    // dopiero przy kolejnej rezerwacji albo po zdarzeniu ze Stripe.
+    const holdOver = booking.status === 'pending_payment' && booking.holdExpiresAt !== null && booking.holdExpiresAt <= now;
+    const status = holdOver ? 'expired' : booking.status;
+    const ownPending = status === 'pending_payment' && overview.client?.id === booking.clientId && !overview.isStaff;
     return {
       id: booking.id,
       date,
@@ -107,9 +118,9 @@ export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery 
       end: minutesInDay(booking.endsAt, date, timeZone),
       timeLabel: `${formatTime(booking.startsAt, timeZone)}–${formatTime(booking.endsAt, timeZone)}`,
       dateLabel: formatDay(booking.startsAt, timeZone),
-      status: booking.status,
-      statusLabel: BOOKING_STATUS_LABELS[booking.status],
-      blocksCalendar: BLOCKING_STATUSES.includes(booking.status),
+      status,
+      statusLabel: BOOKING_STATUS_LABELS[status],
+      blocksCalendar: BLOCKING_STATUSES.includes(status),
       clientId: booking.clientId,
       clientName: booking.clientName,
       instructorName: booking.instructorName,
@@ -121,6 +132,13 @@ export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery 
           : canMarkNoShow(booking.status, booking.startsAt, now)
             ? 'mark'
             : null,
+      pendingPayment:
+        ownPending && booking.holdExpiresAt
+          ? {
+              untilLabel: formatTime(booking.holdExpiresAt, timeZone),
+              amountLabel: booking.paymentAmountCents !== null ? formatMoney(booking.paymentAmountCents, overview.currency) : null,
+            }
+          : null,
       cancel: cancellable
         ? {
             refundable: now.getTime() <= deadline.getTime(),
@@ -206,8 +224,15 @@ export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery 
           balance: overview.client.balance,
           balanceLabel: lessonsLabel(overview.client.balance),
           creditLimit: overview.client.creditLimit,
+          firstLessonPayment: firstLessonPayment(overview, service, query.onlinePayments === true),
         }
       : null,
+    onlinePackages: packages.map((p) => ({
+      id: p.id,
+      name: p.name,
+      creditsLabel: lessonsLabel(p.credits),
+      priceLabel: formatMoney(p.priceCents, overview.currency),
+    })),
     upcoming: next
       ? {
           count: upcoming.length,
@@ -228,6 +253,22 @@ export async function loadWeek(db: Database, ctx: FirmContext, query: WeekQuery 
     slots,
     exceptions,
   };
+}
+
+/**
+ * Płatność za pierwszą lekcję: nowa para bez lekcji na koncie (pierwsza lekcja płatna online), szkoła ma
+ * płatności online, a usługa ma cenę. Wtedy rezerwacja czeka na płatność, zamiast kończyć się odmową.
+ */
+function firstLessonPayment(
+  overview: FirmOverview,
+  service: FirmOverview['services'][number] | null,
+  onlinePayments: boolean,
+): { amountLabel: string; holdMinutes: number } | null {
+  const client = overview.client;
+  if (!client || !service || !onlinePayments || service.priceCents === null) return null;
+  if (client.status !== 'new' || !overview.firstLessonPrepaid) return null;
+  if (client.balance - service.creditCost >= -client.creditLimit) return null;
+  return { amountLabel: formatMoney(service.priceCents, overview.currency), holdMinutes: overview.paymentHoldMinutes };
 }
 
 /**

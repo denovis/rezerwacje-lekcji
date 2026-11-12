@@ -5,7 +5,8 @@
 //    Szkoła (właściciel, admin) może wpisać lekcję o dowolnej godzinie, byle nie nachodziła na inną.
 //  * Rezerwacja przechodzi, jeśli po zdjęciu lekcji saldo ≥ −limit. Sprawdzamy to w transakcji
 //    z blokadą wiersza klienta, więc dwie rezerwacje tej samej pary naraz nie zejdą razem poniżej limitu.
-//  * Nowy klient bez lekcji na koncie płaci za pierwszą lekcję online (płatności: etap 4).
+//  * Nowy klient bez lekcji na koncie płaci za pierwszą lekcję online: rezerwacja czeka na płatność
+//    (pending_payment, płatność Stripe w src/lib/payments.ts), a bez płatności online dostaje odmowę.
 //  * Przed wstawieniem rezerwacji wygasłe blokady na czas płatności zmieniamy na 'expired'.
 //  * Odwołanie do cancel_deadline_hours przed lekcją zwraca lekcję (wpis booking_refund),
 //    później status late_cancelled i lekcja przepada. Historii nie zmieniamy, tylko dopisujemy.
@@ -31,7 +32,7 @@ const MESSAGES = {
   slot_unavailable: 'Ten termin nie jest już wolny. Wybierz inny.',
   slot_taken: 'Ktoś właśnie zajął ten termin. Wybierz inny.',
   overlaps_booking: 'Ta godzina nachodzi na inną lekcję instruktora. Wybierz inną.',
-  payment_required: 'Pierwszą lekcję trzeba opłacić online. Płatności online dodamy wkrótce — skontaktuj się ze szkołą.',
+  payment_required: 'Pierwszą lekcję trzeba opłacić online, a szkoła nie ma jeszcze płatności online. Skontaktuj się ze szkołą.',
   insufficient_credits: 'Brak lekcji na koncie. Kup pakiet albo skontaktuj się ze szkołą.',
   booking_not_found: 'Nie znaleziono rezerwacji.',
   not_cancellable: 'Tej rezerwacji nie można już odwołać.',
@@ -90,6 +91,8 @@ export interface FirmRules {
   schedule: ScheduleSettings;
   cancelDeadlineHours: number;
   firstLessonPrepaid: boolean;
+  /** Jak długo termin czeka na płatność online (payment_hold_minutes). */
+  paymentHoldMinutes: number;
 }
 
 export async function loadFirmRules(tx: Tx, organizationId: string): Promise<FirmRules> {
@@ -107,6 +110,7 @@ export async function loadFirmRules(tx: Tx, organizationId: string): Promise<Fir
       's.maxAdvanceDays',
       's.cancelDeadlineHours',
       's.firstLessonPrepaid',
+      's.paymentHoldMinutes',
     ])
     .where('o.id', '=', organizationId)
     .executeTakeFirst();
@@ -124,6 +128,7 @@ export async function loadFirmRules(tx: Tx, organizationId: string): Promise<Fir
     },
     cancelDeadlineHours: row.cancelDeadlineHours,
     firstLessonPrepaid: row.firstLessonPrepaid,
+    paymentHoldMinutes: row.paymentHoldMinutes,
   };
 }
 
@@ -241,6 +246,11 @@ export interface BookLessonInput {
   instructorId: string;
   serviceId: string;
   startsAt: Date;
+  /**
+   * Para może zapłacić za pierwszą lekcję online (szkoła ma płatności online). Wtedy zamiast odmowy
+   * rezerwacja czeka na płatność (pending_payment) przez payment_hold_minutes.
+   */
+  payOnline?: boolean;
   now?: Date;
 }
 
@@ -248,7 +258,15 @@ export interface BookedLesson {
   bookingId: string;
   startsAt: Date;
   endsAt: Date;
+  /** Rezerwacja czeka na płatność online za pierwszą lekcję. */
+  payment: { paymentId: string; amountCents: number; holdExpiresAt: Date } | null;
 }
+
+/**
+ * Zapas na założenie sesji płatności w Stripe: sesja musi trwać co najmniej 30 minut od jej założenia,
+ * a jej koniec to koniec blokady terminu.
+ */
+const HOLD_MARGIN_MS = MINUTE;
 
 /**
  * Rezerwuje lekcję i zdejmuje ją z konta klienta (wpis 'booking').
@@ -277,7 +295,7 @@ export async function bookLesson(db: Database, ctx: FirmContext, input: BookLess
       const rules = await loadFirmRules(tx, ctx.organizationId);
       const service = await tx
         .selectFrom('services')
-        .select(['id', 'durationMinutes', 'creditCost'])
+        .select(['id', 'durationMinutes', 'creditCost', 'priceCents'])
         .where('id', '=', input.serviceId)
         .where('active', '=', true)
         .executeTakeFirst();
@@ -313,9 +331,44 @@ export async function bookLesson(db: Database, ctx: FirmContext, input: BookLess
 
       const balance = await balanceOf(tx, client.id);
       if (balance - service.creditCost < -client.creditLimit) {
-        throw new BookingError(
-          needsOnlinePayment(client.status, rules.firstLessonPrepaid) ? 'payment_required' : 'insufficient_credits',
-        );
+        if (!needsOnlinePayment(client.status, rules.firstLessonPrepaid)) throw new BookingError('insufficient_credits');
+        // Pierwsza lekcja nowej pary: termin czeka na płatność online, a lekcja trafi na konto po zapłacie.
+        if (actor.isStaff || !input.payOnline || service.priceCents === null) throw new BookingError('payment_required');
+        const holdExpiresAt = new Date(now.getTime() + rules.paymentHoldMinutes * MINUTE + HOLD_MARGIN_MS);
+        const payment = await tx
+          .insertInto('payments')
+          .values({
+            organizationId: ctx.organizationId,
+            clientId: client.id,
+            method: 'stripe',
+            status: 'pending',
+            amountCents: service.priceCents,
+            credits: service.creditCost,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow();
+        const held = await tx
+          .insertInto('bookings')
+          .values({
+            organizationId: ctx.organizationId,
+            instructorId: instructor.id,
+            clientId: client.id,
+            serviceId: service.id,
+            startsAt,
+            endsAt,
+            blocksUntil,
+            status: 'pending_payment',
+            holdExpiresAt,
+            paymentId: payment.id,
+          })
+          .returning('id')
+          .executeTakeFirstOrThrow();
+        return {
+          bookingId: held.id,
+          startsAt,
+          endsAt,
+          payment: { paymentId: payment.id, amountCents: service.priceCents, holdExpiresAt },
+        };
       }
 
       const booking = await tx
@@ -344,7 +397,7 @@ export async function bookLesson(db: Database, ctx: FirmContext, input: BookLess
         })
         .execute();
 
-      return { bookingId: booking.id, startsAt, endsAt };
+      return { bookingId: booking.id, startsAt, endsAt, payment: null };
     });
   } catch (err) {
     // 23P01: ograniczenie EXCLUDE — lekcja nachodzi na inną. Klient wybiera z listy wolnych terminów,

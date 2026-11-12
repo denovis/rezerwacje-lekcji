@@ -4,6 +4,7 @@
 // Szkoła dodatkowo klika puste miejsce w siatce, żeby wpisać lekcję o dowolnej godzinie, wolne
 // albo dodatkowe godziny; wolne widać jako szary pas. Instruktor tylko ogląda swoje lekcje.
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import {
   layoutDay,
@@ -15,7 +16,7 @@ import {
 } from '../../../lib/week-layout';
 import { CalendarDialog, type DialogState } from './calendar-dialog';
 import { EXCEPTION_TITLES } from './exception-form';
-import { Toast, useToast } from './ui';
+import { Toast, useToast, type Message } from './ui';
 
 /** Wysokość minuty w siatce (godzina = 72 px). */
 const PX_PER_MINUTE = 1.2;
@@ -40,14 +41,29 @@ export function WeekCalendar({
   slug,
   view,
   links,
+  notice = null,
 }: {
   data: WeekData;
   slug: string;
   view: View;
   links: CalendarLinks;
+  /** Komunikat do pokazania po wejściu na stronę (np. po powrocie ze strony płatności). */
+  notice?: Message | null;
 }) {
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [message, setMessage] = useToast();
+
+  // Komunikat po powrocie ze strony płatności pokazujemy raz; adres bez ?platnosc=… nie pokaże go po odświeżeniu.
+  // Adres zmieniamy przez router Next.js, żeby kolejne odświeżenie danych (po akcji) nie przywróciło parametrów.
+  const router = useRouter();
+  useEffect(() => {
+    if (!notice) return;
+    setMessage(notice);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('platnosc');
+    url.searchParams.delete('sesja');
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, []); // tylko raz, po wejściu na stronę
 
   const open = (state: DialogState) => setDialog(state);
   const canBookAt = (date: string, minutes: number) =>

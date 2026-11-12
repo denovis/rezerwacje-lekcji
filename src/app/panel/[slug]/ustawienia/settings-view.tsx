@@ -658,6 +658,7 @@ interface RulesFields {
   cancelDeadlineHours: string;
   firstLessonPrepaid: boolean;
   defaultTrustedCreditLimit: string;
+  paymentHoldMinutes: string;
 }
 
 function toFields(rules: ScheduleRules): RulesFields {
@@ -672,6 +673,7 @@ function toFields(rules: ScheduleRules): RulesFields {
     cancelDeadlineHours: String(rules.cancelDeadlineHours),
     firstLessonPrepaid: rules.firstLessonPrepaid,
     defaultTrustedCreditLimit: String(rules.defaultTrustedCreditLimit),
+    paymentHoldMinutes: String(rules.paymentHoldMinutes),
   };
 }
 
@@ -688,6 +690,7 @@ function toRules(fields: RulesFields): ScheduleRules {
     cancelDeadlineHours: number(fields.cancelDeadlineHours),
     firstLessonPrepaid: fields.firstLessonPrepaid,
     defaultTrustedCreditLimit: number(fields.defaultTrustedCreditLimit),
+    paymentHoldMinutes: number(fields.paymentHoldMinutes),
   };
 }
 
@@ -786,8 +789,12 @@ function RulesForm({
         {check(
           'firstLessonPrepaid',
           'Pierwsza lekcja nowej pary tylko z płatnością online',
-          'Płatności online dodamy w etapie 4. Do tego czasu nowa para bez lekcji na koncie dostaje informację, żeby skontaktowała się ze szkołą.',
+          'Nowa para bez lekcji na koncie płaci za pierwszą lekcję online (BLIK, karta, Przelewy24), a termin czeka na płatność. Bez płatności online w szkole dostaje informację, żeby skontaktowała się ze szkołą.',
         )}
+        {numberField('paymentHoldMinutes', 'Termin czeka na płatność online', 'min', {
+          step: 5,
+          hint: 'Od 30 minut do 24 godzin (1440 min). Potem nieopłacony termin wraca do puli.',
+        })}
       </fieldset>
       <fieldset>
         <legend>Klienci</legend>

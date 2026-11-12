@@ -8,6 +8,7 @@ import { lessonsLabel } from '../../../lib/format';
 import type { CalendarException, CalendarLesson, CalendarSlot, WeekData } from '../../../lib/week-layout';
 import { bookAction, cancelAction } from './actions';
 import { markNoShowAction, undoNoShowAction } from './client-actions';
+import { cancelPendingAction, resumePaymentAction } from './payment-actions';
 import { EXCEPTION_TITLES, ExceptionDetails, ExceptionForm, exceptionAddedMessage, type ExceptionKind } from './exception-form';
 import { addExceptionAction, cancelExceptionAction } from './setup-actions';
 import { Modal, useAction } from './ui';
@@ -63,7 +64,31 @@ export function CalendarDialog({ state, data, slug, onClose, onDone }: Props) {
             () => markNoShowAction({ slug, bookingId: lesson.id }),
             () => onDone(`Oznaczono nieobecność: ${lesson.clientName}, ${lesson.timeLabel}. Lekcja przepada.`),
           );
-    body = <LessonDetails lesson={lesson} data={data} slug={slug} pending={pending} onCancel={cancel} onNoShow={noShow} />;
+    const payment = {
+      pay: () =>
+        run(
+          () => resumePaymentAction({ slug, bookingId: lesson.id }),
+          (result) => {
+            if (result.checkoutUrl) window.location.assign(result.checkoutUrl);
+          },
+        ),
+      resign: () =>
+        run(
+          () => cancelPendingAction({ slug, bookingId: lesson.id }),
+          () => onDone('Zrezygnowano z lekcji. Termin wrócił do puli.'),
+        ),
+    };
+    body = (
+      <LessonDetails
+        lesson={lesson}
+        data={data}
+        slug={slug}
+        pending={pending}
+        onCancel={cancel}
+        onNoShow={noShow}
+        payment={payment}
+      />
+    );
   } else if (state.type === 'exception') {
     const exception = state.exception;
     body = (
@@ -124,7 +149,14 @@ export function CalendarDialog({ state, data, slug, onClose, onDone }: Props) {
             data={data}
             pending={pending}
             onBook={(input, summary) =>
-              run(() => bookAction({ slug, serviceId: data.service?.id ?? '', ...input }), () => onDone(`Zarezerwowano: ${summary}.`))
+              run(
+                () => bookAction({ slug, serviceId: data.service?.id ?? '', ...input }),
+                (result) => {
+                  // Pierwsza lekcja nowej pary: termin czeka, a para płaci na stronie Stripe.
+                  if (result.checkoutUrl) window.location.assign(result.checkoutUrl);
+                  else onDone(`Zarezerwowano: ${summary}.`);
+                },
+              )
             }
           />
         )}
@@ -146,6 +178,7 @@ function LessonDetails({
   pending,
   onCancel,
   onNoShow,
+  payment,
 }: {
   lesson: CalendarLesson;
   data: WeekData;
@@ -153,6 +186,7 @@ function LessonDetails({
   pending: boolean;
   onCancel: () => void;
   onNoShow: () => void;
+  payment: { pay: () => void; resign: () => void };
 }) {
   // Szkoła i instruktor widzą parę, klient rodzaj lekcji.
   const forSchool = data.isStaff || data.isInstructor;
@@ -171,6 +205,20 @@ function LessonDetails({
         <p className="small">
           <Link href={`/panel/${slug}/klienci?para=${lesson.clientId}`}>Historia lekcji i saldo pary ›</Link>
         </p>
+      ) : null}
+      {lesson.pendingPayment ? (
+        <div className="modal-actions">
+          <p className="small">
+            Termin czeka na płatność do {lesson.pendingPayment.untilLabel}. Płacisz BLIK-iem, kartą albo Przelewy24; po
+            zapłacie lekcja jest zarezerwowana.
+          </p>
+          <button type="button" onClick={payment.pay} disabled={pending}>
+            {pending ? 'Chwileczkę…' : `Zapłać${lesson.pendingPayment.amountLabel ? `: ${lesson.pendingPayment.amountLabel}` : ''}`}
+          </button>
+          <button type="button" className="secondary danger-outline" onClick={payment.resign} disabled={pending}>
+            Zrezygnuj z lekcji
+          </button>
+        </div>
       ) : null}
       {lesson.noShow === 'mark' ? (
         <div className="modal-actions">
@@ -300,6 +348,11 @@ function BookingForm({
             ))}
           </select>
         </div>
+      ) : data.client?.firstLessonPayment ? (
+        <p className="small">
+          Pierwszą lekcję płacicie online: BLIK, karta albo Przelewy24. Termin czeka na płatność{' '}
+          {data.client.firstLessonPayment.holdMinutes} minut, a po zapłacie lekcja jest zarezerwowana.
+        </p>
       ) : data.client && balanceAfter !== null ? (
         <p>
           Na koncie: <strong>{data.client.balanceLabel}</strong>
@@ -309,7 +362,13 @@ function BookingForm({
 
       <div className="modal-actions">
         <button type="submit" disabled={pending} autoFocus={!data.isStaff}>
-          {pending ? 'Rezerwuję…' : 'Zarezerwuj'}
+          {pending
+            ? data.client?.firstLessonPayment
+              ? 'Przechodzę do płatności…'
+              : 'Rezerwuję…'
+            : data.client?.firstLessonPayment
+              ? `Zarezerwuj i zapłać: ${data.client.firstLessonPayment.amountLabel}`
+              : 'Zarezerwuj'}
         </button>
       </div>
     </form>
