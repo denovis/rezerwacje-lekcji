@@ -659,7 +659,11 @@ interface RulesFields {
   firstLessonPrepaid: boolean;
   defaultTrustedCreditLimit: string;
   paymentHoldMinutes: string;
+  autoCompleteLessons: boolean;
+  autoPromoteAfterFirstLesson: boolean;
 }
+
+type CheckField = 'backToBackSlots' | 'compactDays' | 'firstLessonPrepaid' | 'autoCompleteLessons' | 'autoPromoteAfterFirstLesson';
 
 function toFields(rules: ScheduleRules): RulesFields {
   return {
@@ -674,6 +678,8 @@ function toFields(rules: ScheduleRules): RulesFields {
     firstLessonPrepaid: rules.firstLessonPrepaid,
     defaultTrustedCreditLimit: String(rules.defaultTrustedCreditLimit),
     paymentHoldMinutes: String(rules.paymentHoldMinutes),
+    autoCompleteLessons: rules.autoCompleteLessons,
+    autoPromoteAfterFirstLesson: rules.autoPromoteAfterFirstLesson,
   };
 }
 
@@ -691,6 +697,8 @@ function toRules(fields: RulesFields): ScheduleRules {
     firstLessonPrepaid: fields.firstLessonPrepaid,
     defaultTrustedCreditLimit: number(fields.defaultTrustedCreditLimit),
     paymentHoldMinutes: number(fields.paymentHoldMinutes),
+    autoCompleteLessons: fields.autoCompleteLessons,
+    autoPromoteAfterFirstLesson: fields.autoPromoteAfterFirstLesson,
   };
 }
 
@@ -710,7 +718,7 @@ function RulesForm({
   const changed = JSON.stringify(toRules(fields)) !== JSON.stringify(rules);
   const set = <K extends keyof RulesFields>(key: K, value: RulesFields[K]) => setFields((f) => ({ ...f, [key]: value }));
 
-  const numberField = (key: Exclude<keyof RulesFields, 'backToBackSlots' | 'compactDays' | 'firstLessonPrepaid'>, label: string, unit: string, options: { step?: number; disabled?: boolean; hint?: string } = {}) => (
+  const numberField = (key: Exclude<keyof RulesFields, CheckField>, label: string, unit: string, options: { step?: number; disabled?: boolean; hint?: string } = {}) => (
     <div className={`rule-row${options.disabled ? ' disabled' : ''}`}>
       <label htmlFor={`rule-${key}`}>{label}</label>
       <span className="unit-input">
@@ -731,10 +739,16 @@ function RulesForm({
     </div>
   );
 
-  const check = (key: 'backToBackSlots' | 'compactDays' | 'firstLessonPrepaid', label: string, hint: string) => (
-    <div className="rule-row">
+  const check = (key: CheckField, label: string, hint: string, options: { disabled?: boolean } = {}) => (
+    <div className={`rule-row${options.disabled ? ' disabled' : ''}`}>
       <span className="check">
-        <input id={`rule-${key}`} type="checkbox" checked={fields[key]} onChange={(e) => set(key, e.target.checked)} />
+        <input
+          id={`rule-${key}`}
+          type="checkbox"
+          checked={fields[key]}
+          disabled={options.disabled}
+          onChange={(e) => set(key, e.target.checked)}
+        />
         <label htmlFor={`rule-${key}`}>{label}</label>
       </span>
       <span className="hint">{hint}</span>
@@ -801,6 +815,22 @@ function RulesForm({
         {numberField('defaultTrustedCreditLimit', 'Zaufana para może zejść do', 'lekcji poniżej zera', {
           hint: 'Domyślny limit dla pary, którą oznaczysz jako zaufaną. Każdej parze możesz go potem zmienić na stronie Klienci.',
         })}
+      </fieldset>
+      <fieldset>
+        <legend>Po lekcji</legend>
+        {check(
+          'autoCompleteLessons',
+          'Lekcja po swoim końcu zmienia się na odbytą',
+          'Aplikacja sprawdza to co minutę. Nieobecność możesz oznaczyć także na lekcji odbytej.',
+        )}
+        {check(
+          'autoPromoteAfterFirstLesson',
+          'Nowa para po pierwszej odbytej lekcji staje się stała',
+          fields.autoCompleteLessons
+            ? 'Stała para rezerwuje kolejne lekcje z lekcji na koncie, bez płatności online za każdą lekcję.'
+            : 'Działa razem z oznaczaniem lekcji jako odbytych (pole wyżej).',
+          { disabled: !fields.autoCompleteLessons },
+        )}
       </fieldset>
       <div className="form-foot">
         <button type="submit" disabled={pending || !changed}>

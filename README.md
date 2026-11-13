@@ -60,6 +60,8 @@ db/tests/        testy reguł pilnowanych przez bazę
 src/app/         strony Next.js: logowanie, zapisy nowej pary (/zapisy/<adres szkoły>), wybór firmy,
                  panel z kalendarzem tygodniowym
 src/lib/         baza (withTenant), logowanie, maile, ustawienia, wolne terminy (slots),
-                 rezerwacje i odwołania (bookings), dane kalendarza (week) + testy
+                 rezerwacje i odwołania (bookings), dane kalendarza (week),
+                 zadania w tle (background) + testy
+src/instrumentation.ts  start zadań w tle razem z serwerem aplikacji
 docs/            decyzje i model danych
 ```

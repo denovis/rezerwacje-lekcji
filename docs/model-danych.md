@@ -57,7 +57,7 @@ erDiagram
 - Przedział jest prawostronnie otwarty, więc 16:00–17:00 i 17:00–18:00 nie kolidują.
 - Kalendarz blokują statusy `pending_payment`, `confirmed`, `completed` i `no_show`. Statusy `cancelled`, `late_cancelled` i `expired` zwalniają termin.
 - Pilnuje tego ograniczenie `EXCLUDE` w bazie. Działa też wtedy, gdy dwie osoby klikną ten sam termin w tej samej chwili: przechodzi tylko pierwsza, co sprawdza test.
-- Blokada na czas płatności wygasa w czasie (`hold_expires_at`), a warunek `EXCLUDE` nie może używać `now()`. Dlatego aplikacja przed wstawieniem rezerwacji zmienia w tej samej transakcji wygasłe blokady na `expired`.
+- Blokada na czas płatności wygasa w czasie (`hold_expires_at`), a warunek `EXCLUDE` nie może używać `now()`. Dlatego aplikacja przed wstawieniem rezerwacji zmienia w tej samej transakcji wygasłe blokady na `expired`, a niezależnie od tego robią to co minutę zadania w tle ([`src/lib/background.ts`](../src/lib/background.ts)).
 
 Rezerwacja w aplikacji ([`src/lib/bookings.ts`](../src/lib/bookings.ts), funkcja `bookLesson`) to jedna transakcja:
 
