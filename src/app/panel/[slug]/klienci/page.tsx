@@ -42,6 +42,7 @@ export default async function ClientsPage({
         debtorIds={clientsInDebt(overview.clients).map((c) => c.id)}
         slug={slug}
         openClientId={open}
+        signUpUrl={new URL(`/zapisy/${slug}`, server().baseUrl).toString()}
       />
 
       <footer className="panel-foot">

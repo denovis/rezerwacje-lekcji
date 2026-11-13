@@ -53,7 +53,8 @@ export function WeekCalendar({
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [message, setMessage] = useToast();
 
-  // Komunikat po powrocie ze strony płatności pokazujemy raz; adres bez ?platnosc=… nie pokaże go po odświeżeniu.
+  // Komunikat po powrocie ze strony płatności albo po zapisie pokazujemy raz; adres bez ?platnosc=… i ?zapisano=…
+  // nie pokaże go po odświeżeniu.
   // Adres zmieniamy przez router Next.js, żeby kolejne odświeżenie danych (po akcji) nie przywróciło parametrów.
   const router = useRouter();
   useEffect(() => {
@@ -62,6 +63,7 @@ export function WeekCalendar({
     const url = new URL(window.location.href);
     url.searchParams.delete('platnosc');
     url.searchParams.delete('sesja');
+    url.searchParams.delete('zapisano');
     router.replace(url.pathname + url.search, { scroll: false });
   }, []); // tylko raz, po wejściu na stronę
 

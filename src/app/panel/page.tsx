@@ -18,7 +18,10 @@ export default async function PanelPage() {
       <h1>Twoje firmy</h1>
       <p className="muted">Zalogowano jako {user.email}.</p>
       {firms.length === 0 ? (
-        <p>Nie masz jeszcze dostępu do żadnej firmy.</p>
+        <>
+          <p>Nie masz jeszcze dostępu do żadnej firmy.</p>
+          <p className="muted small">Chcecie zapisać się na lekcje? Poproście szkołę o link do zapisów.</p>
+        </>
       ) : (
         <ul className="firms">
           {firms.map((firm) => (

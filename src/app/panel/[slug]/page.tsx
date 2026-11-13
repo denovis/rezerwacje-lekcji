@@ -34,6 +34,12 @@ function paymentNotice(result: string | undefined, outcome: CheckoutOutcome | nu
   return { kind: 'ok', text: 'Dziękujemy za płatność! Lekcje są już na Waszym koncie.' };
 }
 
+/** Komunikat po samodzielnym zapisie nowej pary (?zapisano=1). */
+const SIGNED_UP: Message = {
+  kind: 'ok',
+  text: 'Gotowe, jesteście zapisani! Kliknijcie wolny termin w kalendarzu, żeby zarezerwować pierwszą lekcję.',
+};
+
 export default async function FirmPage({
   params,
   searchParams,
@@ -159,7 +165,13 @@ export default async function FirmPage({
       ) : null}
 
       {week && links ? (
-        <WeekCalendar data={week} slug={slug} view={view} links={links} notice={paymentNotice(paymentResult, outcome)} />
+        <WeekCalendar
+          data={week}
+          slug={slug}
+          view={view}
+          links={links}
+          notice={paymentNotice(paymentResult, outcome) ?? (single(query.zapisano) && week.client ? SIGNED_UP : null)}
+        />
       ) : (
         <p className="muted">
           Kalendarz widzą klienci, szkoła i instruktorzy. Jeśli prowadzisz lekcje, poproś szkołę o wpisanie Twojego adresu

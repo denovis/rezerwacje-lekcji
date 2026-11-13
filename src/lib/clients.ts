@@ -33,6 +33,11 @@ const MESSAGES = {
   no_show_too_early: 'Nieobecność można oznaczyć dopiero od początku lekcji.',
   no_show_not_possible: 'Tej lekcji nie można oznaczyć jako nieobecność (jest odwołana albo nieopłacona).',
   not_no_show: 'Ta lekcja nie jest oznaczona jako nieobecność.',
+  // Samodzielna rejestracja pary (src/lib/registration.ts).
+  phone_required: 'Podajcie numer telefonu, żeby szkoła mogła się z Wami skontaktować.',
+  signup_member:
+    'Masz już rolę w tej szkole (właściciel, administrator albo instruktor), więc nie zapisujesz się jako para. Profil klienta może Ci założyć szkoła.',
+  signup_email_taken: 'W tej szkole jest już para z tym adresem e-mail. Skontaktujcie się ze szkołą.',
 } as const;
 
 export type ClientErrorCode = keyof typeof MESSAGES;
@@ -200,7 +205,7 @@ export interface ClientInput {
   creditLimit?: number | null;
 }
 
-interface CleanClient {
+export interface CleanClient {
   displayName: string;
   email: string | null;
   phone: string | null;
@@ -209,7 +214,8 @@ interface CleanClient {
   status: ClientStatus;
 }
 
-function clean(input: ClientInput): CleanClient {
+/** Sprawdza i porządkuje dane pary (te same zasady przy dodaniu przez szkołę i przy samodzielnym zapisie). */
+export function cleanClient(input: ClientInput): CleanClient {
   const displayName = (input.displayName ?? '').trim();
   if (!displayName) throw new ClientError('name_required');
   if (displayName.length > 80) throw new ClientError('name_too_long');
@@ -270,7 +276,7 @@ async function emailTaken(tx: Tx, ctx: FirmContext, email: string, userId: strin
 export function addClient(db: Database, ctx: FirmContext, input: ClientInput): Promise<{ id: string }> {
   return withTenant(db, ctx, async (tx) => {
     await requireStaff(tx, ctx);
-    const client = clean(input);
+    const client = cleanClient(input);
     const creditLimit = await limitFor(tx, ctx, client.status, input.creditLimit);
     let userId: string | null = null;
     if (client.email) {
@@ -299,7 +305,7 @@ export interface ClientUpdate extends ClientInput {
 export function updateClient(db: Database, ctx: FirmContext, input: ClientUpdate): Promise<void> {
   return withTenant(db, ctx, async (tx) => {
     await requireStaff(tx, ctx);
-    const client = clean(input);
+    const client = cleanClient(input);
     const current = await tx
       .selectFrom('clients')
       .select(['id', 'email', 'userId', 'status', 'creditLimit'])

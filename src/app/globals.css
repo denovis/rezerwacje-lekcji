@@ -1215,3 +1215,27 @@ textarea {
     font-size: 1rem;
   }
 }
+
+/* Strona zapisów nowej pary: pola jedno pod drugim, jak w logowaniu. */
+.stack-form input[type='text'],
+.stack-form input[type='tel'],
+.stack-form input[type='date'] {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.field-optional {
+  font-weight: 400;
+}
+
+.signup-note {
+  margin: 16px 0 0;
+}
+
+/* Link do zapisów na stronie Klienci: długi adres łamie się zamiast poszerzać stronę. */
+.signup-link {
+  margin-bottom: 14px;
+  overflow-wrap: anywhere;
+}

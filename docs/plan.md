@@ -52,6 +52,7 @@ Strona „Klienci” (przycisk nad kalendarzem); nieobecność w okienku lekcji 
 
 - [x] Decyzja ([decyzje.md](decyzje.md), „Technologia”): na razie aplikacja działa lokalnie; maile przez Brevo; na start bez domeny.
 - [ ] Wdrożenie na serwer (polecany Render, Frankfurt), gdy aplikacja ma działać dla par przez internet.
+- [ ] Zanim pary dostaną link do zapisów: na stronie zapisów informacja RODO (kto przetwarza dane i po co) i akceptacja regulaminu szkoły. Treść ustala właściciel (dopisane w etapie 4c; dziś strona zapisów zbiera dane bez takiej informacji).
 
 ### Etap 4a. Ceny, pakiety i gotówka: gotowe (PR #6)
 
@@ -74,9 +75,15 @@ Wymaga konta Stripe w trybie testowym (zakłada właściciel).
 - [x] W ustawieniach: czas blokady terminu na płatność (`payment_hold_minutes`) (dopisane w etapie 3b).
 - [x] Commit i PR.
 
-### Etap 4c. Samodzielna rejestracja nowej pary: zaplanowane
+### Etap 4c. Samodzielna rejestracja nowej pary: gotowe (PR #8)
 
-- [ ] Samodzielna rejestracja nowej pary na stronie szkoły (wcześniej bez etapu; pasuje po 4b, bo nowa para płaci za pierwszą lekcję online).
+Strona zapisów szkoły `/zapisy/<adres szkoły>`; link do niej szkoła ma na stronie Klienci.
+
+- [x] Samodzielna rejestracja nowej pary na stronie szkoły (wcześniej bez etapu; pasuje po 4b, bo nowa para płaci za pierwszą lekcję online).
+- [x] Najpierw adres e-mail i link z maila, potem dane pary (nazwa, telefon, data ślubu); po zapisie para trafia prosto do kalendarza.
+- [x] Bez dubli: para z profilem w szkole od razu trafia do kalendarza; osoba z rolą w szkole nie zapisuje się jako para.
+- [x] Na stronie Klienci: link do zapisów z przyciskiem „Kopiuj link”.
+- [x] Commit i PR.
 
 ### Etap 5. Przypomnienia i zadania w tle: zaplanowane
 
@@ -86,6 +93,7 @@ Wymaga konta Stripe w trybie testowym (zakłada właściciel).
 - [ ] Para po pierwszej odbytej lekcji staje się stała.
 - [ ] Alert dla szkoły o płatności, która dotarła po zwolnieniu terminu (dziś tylko wpis payment.late w dzienniku) (dopisane w etapie 4b).
 - [ ] W ustawieniach: kiedy wysłać przypomnienie i włączanie automatycznych zmian statusów (`reminder_hours_before`, `auto_complete_lessons`, `auto_promote_after_first_lesson`) (dopisane w etapie 3b).
+- [ ] Mail do szkoły o nowej parze, która zapisała się sama (dziś tylko wpis client.registered w dzienniku i para na liście Klienci) (dopisane w etapie 4c).
 
 ## Na później (po wersji 1)
 
@@ -97,6 +105,7 @@ Wymaga konta Stripe w trybie testowym (zakłada właściciel).
 - Nadpisywanie reguł grafiku dla instruktora albo usługi.
 - Dostęp do panelu (zauważone w etapie 3b): dodawanie administratorów i odbieranie roli. Wyłączony instruktor albo instruktor bez adresu e-mail zachowuje rolę w firmie, ale nie widzi już żadnych lekcji.
 - Klienci (zauważone w etapie 3c): dodanie nowej pary prosto z okienka „Nowa lekcja” w kalendarzu; oznaczanie nieobecności przez instruktora na jego lekcjach; ukrywanie par, które skończyły kurs (tabela `clients` nie ma jeszcze flagi `active`).
+- Zapisy nowych par (zauważone w etapie 4c): wyłącznik zapisów w ustawieniach szkoły (dziś każda szkoła ma stronę zapisów); łączenie dwóch profili tej samej pary, np. dodanej przez szkołę bez adresu e-mail, która potem zapisała się sama.
 - Godziny pracy instruktorów w tle kalendarza szkoły (np. szare tło poza godzinami pracy) i zaznaczanie wolnego przeciągnięciem po siatce.
 - Stripe Connect i zakładanie firm przez stronę.
 - Do sprawdzenia przed sprzedażą:
