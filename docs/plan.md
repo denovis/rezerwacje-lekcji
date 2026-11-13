@@ -97,12 +97,15 @@ Serwer aplikacji co minutę sprawdza wszystkie firmy, a po starcie od razu nadra
 - [x] W ustawieniach: włączanie automatycznych zmian statusów (`auto_complete_lessons`, `auto_promote_after_first_lesson`) (dopisane w etapie 3b).
 - [x] Commit i PR.
 
-### Etap 5b. Maile: zaplanowane
+### Etap 5b. Maile: w trakcie
 
-- [ ] Przypomnienie mailem przed lekcją.
-- [ ] W ustawieniach: kiedy wysłać przypomnienie (`reminder_hours_before`) (dopisane w etapie 3b).
-- [ ] Alert dla szkoły o płatności, która dotarła po zwolnieniu terminu (dziś tylko wpis payment.late w dzienniku) (dopisane w etapie 4b).
-- [ ] Mail do szkoły o nowej parze, która zapisała się sama (dziś tylko wpis client.registered w dzienniku i para na liście Klienci) (dopisane w etapie 4c).
+Wymaga etapu 5a (maile wysyłają zadania w tle).
+
+- [x] Przypomnienie mailem przed lekcją.
+- [x] W ustawieniach: kiedy wysłać przypomnienie (`reminder_hours_before`) (dopisane w etapie 3b).
+- [x] Alert dla szkoły o płatności, która dotarła po zwolnieniu terminu (mail do właścicieli i administratorów) (dopisane w etapie 4b).
+- [x] Mail do szkoły o nowej parze, która zapisała się sama (dopisane w etapie 4c).
+- [ ] Commit i PR.
 
 ## Na później (po wersji 1)
 

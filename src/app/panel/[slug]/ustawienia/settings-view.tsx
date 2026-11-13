@@ -659,6 +659,7 @@ interface RulesFields {
   firstLessonPrepaid: boolean;
   defaultTrustedCreditLimit: string;
   paymentHoldMinutes: string;
+  reminderHoursBefore: string;
   autoCompleteLessons: boolean;
   autoPromoteAfterFirstLesson: boolean;
 }
@@ -678,6 +679,7 @@ function toFields(rules: ScheduleRules): RulesFields {
     firstLessonPrepaid: rules.firstLessonPrepaid,
     defaultTrustedCreditLimit: String(rules.defaultTrustedCreditLimit),
     paymentHoldMinutes: String(rules.paymentHoldMinutes),
+    reminderHoursBefore: String(rules.reminderHoursBefore),
     autoCompleteLessons: rules.autoCompleteLessons,
     autoPromoteAfterFirstLesson: rules.autoPromoteAfterFirstLesson,
   };
@@ -697,6 +699,7 @@ function toRules(fields: RulesFields): ScheduleRules {
     firstLessonPrepaid: fields.firstLessonPrepaid,
     defaultTrustedCreditLimit: number(fields.defaultTrustedCreditLimit),
     paymentHoldMinutes: number(fields.paymentHoldMinutes),
+    reminderHoursBefore: number(fields.reminderHoursBefore),
     autoCompleteLessons: fields.autoCompleteLessons,
     autoPromoteAfterFirstLesson: fields.autoPromoteAfterFirstLesson,
   };
@@ -808,6 +811,9 @@ function RulesForm({
         {numberField('paymentHoldMinutes', 'Termin czeka na płatność online', 'min', {
           step: 5,
           hint: 'Od 30 minut do 24 godzin (1440 min). Potem nieopłacony termin wraca do puli.',
+        })}
+        {numberField('reminderHoursBefore', 'Przypomnienie mailem', 'godz. przed lekcją', {
+          hint: '0 = bez przypomnień. Para dostaje maila, jeśli zarezerwowała lekcję wcześniej niż ten czas przed nią.',
         })}
       </fieldset>
       <fieldset>

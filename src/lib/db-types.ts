@@ -13,6 +13,10 @@ export type ClientStatus = "new" | "regular" | "trusted";
 
 export type CreditReason = "adjustment" | "booking" | "booking_refund" | "purchase";
 
+export type EmailKind = "client_registered" | "late_payment" | "lesson_reminder";
+
+export type EmailStatus = "failed" | "sending" | "sent";
+
 export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
@@ -160,6 +164,20 @@ export interface CreditEntries {
   reason: CreditReason;
 }
 
+export interface EmailNotifications {
+  attempts: Generated<number>;
+  createdAt: Generated<Timestamp>;
+  entityId: string;
+  id: Generated<string>;
+  kind: EmailKind;
+  lastError: string | null;
+  organizationId: string;
+  recipient: string;
+  sentAt: Timestamp | null;
+  status: Generated<EmailStatus>;
+  updatedAt: Generated<Timestamp>;
+}
+
 export interface Instructors {
   active: Generated<boolean>;
   createdAt: Generated<Timestamp>;
@@ -263,6 +281,7 @@ export interface DB {
   clientBalances: ClientBalances;
   clients: Clients;
   creditEntries: CreditEntries;
+  emailNotifications: EmailNotifications;
   instructors: Instructors;
   memberships: Memberships;
   organizations: Organizations;

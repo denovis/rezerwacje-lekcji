@@ -3,7 +3,7 @@
 import { createAuth, MAGIC_LINK_MINUTES, type Auth } from './auth';
 import { readConfig } from './config';
 import { createDb, type Database } from './db';
-import { createMailer, magicLinkEmail } from './email';
+import { createMailer, magicLinkEmail, type SendEmail } from './email';
 import { stripeGateway, type PaymentGateway } from './stripe-gateway';
 
 interface ServerContext {
@@ -15,6 +15,8 @@ interface ServerContext {
   payments: PaymentGateway | null;
   /** Sekret podpisu webhooków Stripe; null, gdy nie ustawiony. */
   stripeWebhookSecret: string | null;
+  /** Wysyłka maili (SMTP_URL; bez niego mail trafia tylko do logu serwera). */
+  sendEmail: SendEmail;
 }
 
 const store = globalThis as typeof globalThis & { __rezerwacjeLekcji?: ServerContext };
@@ -36,6 +38,7 @@ export function server(): ServerContext {
       baseUrl: config.baseUrl,
       payments: config.stripeSecretKey ? stripeGateway(config.stripeSecretKey) : null,
       stripeWebhookSecret: config.stripeWebhookSecret ?? null,
+      sendEmail,
     };
   }
   return store.__rezerwacjeLekcji;

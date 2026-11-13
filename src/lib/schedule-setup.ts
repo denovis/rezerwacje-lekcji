@@ -46,6 +46,7 @@ const MESSAGES = {
   invalid_cancel_deadline: 'Termin odwołania: od 0 do 720 godzin przed lekcją.',
   invalid_trusted_limit: 'Domyślny limit zaufanej pary: od 0 do 20 lekcji.',
   invalid_payment_hold: 'Czas na płatność online: od 30 do 1440 minut (24 godziny).',
+  invalid_reminder: 'Przypomnienie mailem: od 0 do 168 godzin (tydzień) przed lekcją.',
 } as const;
 
 export type SetupErrorCode = keyof typeof MESSAGES;
@@ -75,6 +76,8 @@ export interface ScheduleRules {
   defaultTrustedCreditLimit: number;
   /** Jak długo termin pierwszej lekcji czeka na płatność online (Stripe: od 30 minut do 24 godzin). */
   paymentHoldMinutes: number;
+  /** Ile godzin przed lekcją para dostaje przypomnienie mailem; 0 = bez przypomnień. */
+  reminderHoursBefore: number;
   /** Zadania w tle: lekcja po swoim końcu zmienia się na odbytą. */
   autoCompleteLessons: boolean;
   /** Zadania w tle: nowa para po pierwszej odbytej lekcji staje się stała. */
@@ -93,6 +96,7 @@ const RULE_LIMITS: Record<NumericRule, [min: number, max: number, error: SetupEr
   cancelDeadlineHours: [0, 720, 'invalid_cancel_deadline'],
   defaultTrustedCreditLimit: [0, 20, 'invalid_trusted_limit'],
   paymentHoldMinutes: [30, 1440, 'invalid_payment_hold'],
+  reminderHoursBefore: [0, 168, 'invalid_reminder'],
 };
 
 /** Pierwszy błąd w regułach grafiku albo null, gdy wszystkie wartości są w dozwolonych zakresach. */
@@ -327,6 +331,7 @@ export function loadScheduleSetup(db: Database, ctx: FirmContext, now: Date = ne
         'firstLessonPrepaid',
         'defaultTrustedCreditLimit',
         'paymentHoldMinutes',
+        'reminderHoursBefore',
         'autoCompleteLessons',
         'autoPromoteAfterFirstLesson',
       ])
@@ -641,6 +646,7 @@ export function updateScheduleRules(db: Database, ctx: FirmContext, rules: Sched
       firstLessonPrepaid: Boolean(rules.firstLessonPrepaid),
       defaultTrustedCreditLimit: rules.defaultTrustedCreditLimit,
       paymentHoldMinutes: rules.paymentHoldMinutes,
+      reminderHoursBefore: rules.reminderHoursBefore,
       autoCompleteLessons: Boolean(rules.autoCompleteLessons),
       autoPromoteAfterFirstLesson: Boolean(rules.autoPromoteAfterFirstLesson),
     };
