@@ -282,4 +282,4 @@ Etapy z listą rzeczy do zrobienia i stanem każdego z nich są w [plan.md](plan
 2. Szkielet aplikacji i logowanie — gotowe (PR #2).
 3. Kalendarz i rezerwacje (3a) — gotowe (PR #3), ustawienia grafiku w panelu (3b) — gotowe (PR #4), klienci w panelu (3c) — gotowe (PR #5).
 4. Płatności: ceny, pakiety i gotówka (4a) — gotowe (PR #6), płatności online przez Stripe (4b) — gotowe (PR #7), samodzielna rejestracja nowej pary (4c) — gotowe (PR #8).
-5. Zadania w tle (5a) — gotowe (PR #9), maile: przypomnienia i alerty dla szkoły (5b).
+5. Zadania w tle (5a) — gotowe (PR #9), maile: przypomnienia i alerty dla szkoły (5b) — gotowe (PR #10).
