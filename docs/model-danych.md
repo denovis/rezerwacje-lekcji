@@ -1,6 +1,6 @@
 # Model danych
 
-Źródło prawdy: migracje w [`db/migrations`](../db/migrations) — `0001_init.sql` (dane firm), `0002_logowanie.sql` (logowanie) i `0003_ustawienia_grafiku.sql` (flagi `active` godzin pracy i wyjątków, etap 3b). Reguły z tego dokumentu sprawdzają testy w [`db/tests`](../db/tests) i [`src/lib`](../src/lib).
+Źródło prawdy: migracje w [`db/migrations`](../db/migrations) — `0001_init.sql` (dane firm), `0002_logowanie.sql` (logowanie) , `0003_ustawienia_grafiku.sql` (flagi `active` godzin pracy i wyjątków, etap 3b) i `0004_maile.sql` (maile z zadań w tle, etap 5b). Reguły z tego dokumentu sprawdzają testy w [`db/tests`](../db/tests) i [`src/lib`](../src/lib).
 
 ```mermaid
 erDiagram
@@ -24,6 +24,7 @@ erDiagram
   payments |o--o{ credit_entries : "plus N"
   bookings |o--o{ credit_entries : "minus i zwrot"
   organizations ||--o{ audit_log : "dziennik"
+  organizations ||--o{ email_notifications : "maile"
   users ||--o{ auth_sessions : "sesje"
   users ||--o{ auth_accounts : "sposoby logowania"
 ```
@@ -50,6 +51,7 @@ erDiagram
 | `credit_entries` | historia lekcji klienta; saldo = suma | tylko dopisywanie; płatność dopisuje raz, rezerwacja zdejmuje raz i zwraca najwyżej raz |
 | `client_balances` (widok) | saldo każdego klienta | podlega RLS czytającego (`security_invoker`) |
 | `audit_log` | kto co zrobił (gotówka, zmiana statusu) | tylko dopisywanie |
+| `email_notifications` | maile z zadań w tle: przypomnienia o lekcjach i alerty dla szkoły; adresat, stan, liczba prób, ostatni błąd | ten sam mail do tej samej osoby najwyżej raz (unikalny klucz); bez kasowania |
 
 ## Rezerwacje i nakładanie się terminów
 

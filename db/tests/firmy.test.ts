@@ -65,7 +65,16 @@ describe('Oddzielenie danych firm', () => {
 
   it('bez ustawionej firmy aplikacja nie widzi żadnych danych firm', async () => {
     const counts = await asApp(pool, {}, async (db) => {
-      const tables = ['clients', 'instructors', 'services', 'bookings', 'payments', 'credit_entries', 'memberships'];
+      const tables = [
+        'clients',
+        'instructors',
+        'services',
+        'bookings',
+        'payments',
+        'credit_entries',
+        'memberships',
+        'email_notifications',
+      ];
       const result: Record<string, number> = {};
       for (const t of tables) {
         result[t] = (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${t}`)).rows[0]?.n ?? -1;

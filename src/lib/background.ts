@@ -13,8 +13,11 @@
 //  * Zadania można powtarzać: zmieniają tylko wiersze w starym stanie (UPDATE … WHERE status = …), więc dwa
 //    przebiegi naraz niczego nie zdublują.
 //  * Każda zmiana trafia do dziennika (audit_log) bez autora (actor_user_id = NULL).
+//  * Po zmianach statusów idą maile tej firmy (etap 5b, src/lib/notifications.ts): przypomnienia o lekcjach
+//    i alerty dla szkoły.
 import { withTenant, type Database, type Tx } from './db';
 import type { Json } from './db-types';
+import { sendFirmEmails, type MailDeps, type MailReport } from './notifications';
 
 /** Co zmieniło jedno przejście zadań. */
 export interface TaskReport {
@@ -129,23 +132,32 @@ export function runFirmTasks(db: Database, organizationId: string, now: Date = n
   });
 }
 
-/** Zadania w tle wszystkich firm. Błąd jednej firmy trafia do logu, a pozostałe firmy idą dalej. */
+/**
+ * Zadania w tle wszystkich firm: zmiany statusów, a potem maile (gdy podano wysyłkę maili).
+ * Błąd jednej firmy trafia do logu, a pozostałe firmy idą dalej.
+ */
 export async function runAllFirms(
   db: Database,
   now: Date = new Date(),
   log: Pick<Console, 'error'> = console,
-): Promise<TaskReport> {
+  mail: MailDeps | null = null,
+): Promise<TaskReport & MailReport> {
   // Tabelę firm można czytać bez wybranej firmy.
   const firms = await withTenant(db, { organizationId: null, userId: null }, (tx) =>
     tx.selectFrom('organizations').select('id').orderBy('createdAt').execute(),
   );
-  const total = { ...EMPTY };
+  const total = { ...EMPTY, emailsSent: 0, emailsFailed: 0 };
   for (const firm of firms) {
     try {
       const report = await runFirmTasks(db, firm.id, now);
       total.expiredHolds += report.expiredHolds;
       total.completedLessons += report.completedLessons;
       total.promotedClients += report.promotedClients;
+      if (mail) {
+        const mails = await sendFirmEmails(db, firm.id, mail, now);
+        total.emailsSent += mails.emailsSent;
+        total.emailsFailed += mails.emailsFailed;
+      }
     } catch (err) {
       log.error(`[zadania w tle] Błąd w firmie ${firm.id}:`, err);
     }
@@ -154,11 +166,13 @@ export async function runAllFirms(
 }
 
 /** Opis zmian do logu serwera, np. „wygasłe blokady: 1, odbyte lekcje: 3”; null, gdy nic się nie zmieniło. */
-export function describeReport(report: TaskReport): string | null {
+export function describeReport(report: TaskReport & Partial<MailReport>): string | null {
   const parts = [
     report.expiredHolds ? `wygasłe blokady: ${report.expiredHolds}` : null,
     report.completedLessons ? `odbyte lekcje: ${report.completedLessons}` : null,
     report.promotedClients ? `pary stałe: ${report.promotedClients}` : null,
+    report.emailsSent ? `wysłane maile: ${report.emailsSent}` : null,
+    report.emailsFailed ? `nieudane maile: ${report.emailsFailed}` : null,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(', ') : null;
 }
@@ -176,7 +190,10 @@ const store = globalThis as typeof globalThis & { __rezerwacjeZadaniaWTle?: Runn
  * Uruchamia zadania w tle w tym procesie: od razu (nadrobienie zaległości po starcie), potem co minutę.
  * Drugie wywołanie w tym samym procesie nic nie robi. Kolejny przebieg nie zaczyna się, dopóki trwa poprzedni.
  */
-export function startBackgroundTasks(db: Database, options: { intervalMs?: number; log?: Pick<Console, 'info' | 'error'> } = {}): Running {
+export function startBackgroundTasks(
+  db: Database,
+  options: { intervalMs?: number; log?: Pick<Console, 'info' | 'error'>; mail?: MailDeps } = {},
+): Running {
   if (store.__rezerwacjeZadaniaWTle) return store.__rezerwacjeZadaniaWTle;
   const log = options.log ?? console;
   let busy = false;
@@ -184,7 +201,7 @@ export function startBackgroundTasks(db: Database, options: { intervalMs?: numbe
     if (busy) return;
     busy = true;
     try {
-      const summary = describeReport(await runAllFirms(db, new Date(), log));
+      const summary = describeReport(await runAllFirms(db, new Date(), log, options.mail ?? null));
       if (summary) log.info(`[zadania w tle] ${summary}`);
     } catch (err) {
       log.error('[zadania w tle] Błąd:', err);

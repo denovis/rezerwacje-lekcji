@@ -1,6 +1,6 @@
 # Decyzje projektu
 
-Wersja 0.9 z 13.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
+Wersja 0.10 z 13.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
 
 ## 1. Produkt
 
@@ -57,7 +57,7 @@ Wersja 0.9 z 13.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
   - po zapłacie rezerwacja jest zarezerwowana, a w historii są dwa wpisy: +lekcja z płatności i −lekcja za rezerwację (saldo bez zmian);
   - zdarzenie `checkout.session.expired` albo nieudana płatność (`async_payment_failed`) zmienia rezerwację na `expired` i termin wraca do puli; blokada, której czas minął, i tak nie zajmuje terminu; zadania w tle (etap 5a) w ciągu minuty zmieniają ją na `expired`, a płatność przepada (`expired`); to samo robi też kolejna rezerwacja u tego instruktora;
   - para może dokończyć płatność („Zapłać”) albo zrezygnować („Zrezygnuj z lekcji”) w okienku lekcji; rezygnacja od razu zwalnia termin i zamyka sesję w Stripe;
-  - płatność, która dotrze po zwolnieniu terminu, trafia na konto klienta jako lekcja do wykorzystania, a w dzienniku zostaje wpis `payment.late`. Widoczny alert dla szkoły jest w planie (etap 5).
+  - płatność, która dotrze po zwolnieniu terminu, trafia na konto klienta jako lekcja do wykorzystania, a w dzienniku zostaje wpis `payment.late`. Szkoła dostaje o tym maila (etap 5b).
   - Szkoła nie wpisuje nowej parze lekcji z płatnością online: wtedy przyjmuje gotówkę (zakładka „Wpłata”).
 - **Pakiet online (etap 4b):** para kupuje pakiet przyciskiem „Kup pakiet lekcji” pod saldem. Płatność czeka godzinę; lekcje trafiają na konto po zapłacie.
 - **Potwierdzenie płatności:** przychodzi webhookiem (`/api/stripe/webhook`, podpis sprawdzany sekretem `STRIPE_WEBHOOK_SECRET`) i dodatkowo przy powrocie pary ze strony płatności (aplikacja pyta Stripe o sesję). Oba są odporne na powtórzenia: płatność zmienia się na opłaconą raz, a unikalny indeks w bazie nie dopuści drugiego wpisu `purchase`. BLIK i Przelewy24 mogą potwierdzić się później (`async_payment_succeeded`); do tego czasu lekcja czeka.
@@ -95,7 +95,7 @@ Długość lekcji ustawia się w usłudze (`services.duration_minutes`), domyśl
 | `min_notice_minutes` | 1440 (24 h) | najkrótsze wyprzedzenie rezerwacji |
 | `max_advance_days` | 60 | jak daleko do przodu można rezerwować |
 | `cancel_deadline_hours` | 24 | do kiedy odwołanie zwraca lekcję |
-| `reminder_hours_before` | 24 | kiedy wysłać przypomnienie |
+| `reminder_hours_before` | 24 | ile godzin przed lekcją para dostaje przypomnienie mailem (0 = bez przypomnień) |
 | `first_lesson_prepaid` | tak | pierwsza lekcja nowego klienta tylko z płatnością online |
 | `payment_hold_minutes` | 30 | jak długo termin czeka na płatność (30 min – 24 h) |
 
@@ -146,7 +146,7 @@ Szkoła (właściciel, admin) ustawia grafik na osobnej stronie „Ustawienia”
 - **Reguły grafiku** w panelu: `back_to_back_slots`, `slot_step_minutes`, `buffer_minutes`, `min_gap_minutes`, `compact_days`, `min_notice_minutes` (w panelu w godzinach), `max_advance_days`, `cancel_deadline_hours` i `first_lesson_prepaid`. Wolne terminy liczą się według nich od razu; zarezerwowane lekcje zostają bez zmian.
   - Zakresy: lekcje co 5–240 min, przerwa 0–240 min, najkrótsza dziura 0–600 min, wyprzedzenie 0–720 h, horyzont 1–730 dni, termin odwołania 0–720 h.
   - Domyślny limit zaufanej pary (`default_trusted_credit_limit`, 0–20 lekcji) jest w tych samych ustawieniach, w części „Klienci” (etap 3c).
-  - Automatyczne zmiany statusów (`auto_complete_lessons`, `auto_promote_after_first_lesson`) są w części „Po lekcji” (etap 5a). Kiedy wysłać przypomnienie (`reminder_hours_before`) dojdzie w etapie 5b (`plan.md`).
+  - Automatyczne zmiany statusów (`auto_complete_lessons`, `auto_promote_after_first_lesson`) są w części „Po lekcji” (etap 5a). Przypomnienie mailem (`reminder_hours_before`, 0–168 godzin, 0 = bez przypomnień) jest w części „Rezerwacje i odwołania” (etap 5b).
 - **Usługi:** nazwa, długość (5–600 min), ile lekcji zdejmuje z konta (1–10), wyłączanie i włączanie.
   - Nowa długość i koszt dotyczą nowych rezerwacji; zarezerwowane lekcje zostają bez zmian.
   - Ostatniej aktywnej usługi nie można wyłączyć, bo nikt nie mógłby zarezerwować lekcji.
@@ -184,7 +184,7 @@ Nowa para zapisuje się sama na stronie zapisów szkoły: `/zapisy/<adres szkoł
   - Para dodana przez szkołę bez adresu e-mail, która zapisze się sama, będzie miała dwa profile. Łączenie profili jest w planie na później.
 - **Osoba z rolą w szkole** (właściciel, administrator, instruktor) nie zapisuje się jako para; profil klienta może jej założyć szkoła. Strona zapisów mówi jej to i pozwala się wylogować, żeby sprawdzić zapis innym adresem.
 - **Każda szkoła ma stronę zapisów** (bez wyłącznika). Strona jest dostępna tylko pod adresem, który szkoła sama komuś poda. Wyłącznik zapisów w ustawieniach jest w planie na później.
-- Zapis trafia do dziennika (`audit_log`, `client.registered`). Mail do szkoły o nowej parze jest w planie (etap 5b).
+- Zapis trafia do dziennika (`audit_log`, `client.registered`), a szkoła dostaje o nowej parze maila (etap 5b).
 
 ### Zadania w tle (etap 5a)
 
@@ -201,6 +201,24 @@ Serwer aplikacji sam zmienia statusy, które zależą od upływu czasu: od razu 
   - Awans działa tylko razem z oznaczaniem lekcji jako odbytych. Jeśli szkoła oznaczy nieobecność już po awansie, status zostaje; szkoła może go zmienić na stronie Klienci.
   - Zaufana para zostaje zaufana ze swoim limitem.
 - **Ustawienia:** oba przełączniki są w Ustawieniach, w części „Po lekcji”.
+
+### Maile z zadań w tle (etap 5b)
+
+Po zmianach statusów zadania w tle wysyłają maile każdej firmy. Zasady pilnuje `src/lib/notifications.ts`, a treści są w `src/lib/email.ts`.
+
+- **Przypomnienie o lekcji** (do pary): `reminder_hours_before` przed zarezerwowaną lekcją, domyślnie 24 godziny; 0 wyłącza przypomnienia.
+  - Mail podaje usługę, dzień, godziny, instruktora i do kiedy odwołanie zwraca lekcję (albo że ten czas już minął), z linkiem do kalendarza.
+  - Para musi mieć adres e-mail: z profilu, a gdy go nie ma, z konta, którym się loguje.
+  - Lekcji zarezerwowanej już po chwili przypomnienia (np. dziś na jutro) nie przypominamy: para właśnie ją zarezerwowała.
+  - Gdy aplikacja nie działała w chwili przypomnienia, mail wychodzi po starcie, o ile lekcja jeszcze się nie zaczęła. Lekcje odwołane i czekające na płatność nie dostają przypomnienia.
+- **Alerty dla szkoły** (do właścicieli i administratorów, nie do instruktorów):
+  - płatność, która dotarła po zwolnieniu terminu (`payment.late`): kto, ile, za jaką lekcję, z linkiem do pary na stronie Klienci;
+  - nowa para, która zapisała się sama (`client.registered`): nazwa, e-mail, telefon, data ślubu, z linkiem do pary.
+  - Tylko o zdarzeniach z ostatnich 7 dni, żeby po długiej przerwie w działaniu aplikacji nie zasypać szkoły starymi alertami.
+- **Każdy mail najwyżej raz na adresata.** Zanim mail wyjdzie, powstaje jego wiersz w `email_notifications` (rodzaj, czego dotyczy, adresat, stan, liczba prób, ostatni błąd). Unikalny klucz nie wpuści drugiego takiego samego maila, także z drugiego procesu.
+  - Nieudana wysyłka (np. serwer SMTP nie odpowiada) zostaje jako `failed` z błędem. Kolejne przebiegi próbują ponownie, razem najwyżej 5 razy, o ile mail jest jeszcze aktualny (np. lekcja się nie zaczęła).
+  - Gdy serwer padnie w trakcie wysyłki, wiersz zostaje jako `sending` i mail nie wychodzi drugi raz: wolimy jeden brakujący mail niż dwa takie same.
+- Lokalnie wszystkie maile łapie Mailpit (http://localhost:8025). Żeby wychodziły naprawdę, wystarczy SMTP Brevo w `SMTP_URL` (część „Technologia”).
 
 ### Na później (poza wersją 1)
 
@@ -264,4 +282,4 @@ Etapy z listą rzeczy do zrobienia i stanem każdego z nich są w [plan.md](plan
 2. Szkielet aplikacji i logowanie — gotowe (PR #2).
 3. Kalendarz i rezerwacje (3a) — gotowe (PR #3), ustawienia grafiku w panelu (3b) — gotowe (PR #4), klienci w panelu (3c) — gotowe (PR #5).
 4. Płatności: ceny, pakiety i gotówka (4a) — gotowe (PR #6), płatności online przez Stripe (4b) — gotowe (PR #7), samodzielna rejestracja nowej pary (4c) — gotowe (PR #8).
-5. Zadania w tle (5a) — gotowe (PR #9), maile: przypomnienia, alerty dla szkoły (5b).
+5. Zadania w tle (5a) — gotowe (PR #9), maile: przypomnienia i alerty dla szkoły (5b) — gotowe (PR #10).
