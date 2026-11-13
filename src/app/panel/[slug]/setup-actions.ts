@@ -137,6 +137,8 @@ export async function saveRulesAction(input: { slug: string; rules: ScheduleRule
       firstLessonPrepaid: r.firstLessonPrepaid === true,
       defaultTrustedCreditLimit: integer(r.defaultTrustedCreditLimit),
       paymentHoldMinutes: integer(r.paymentHoldMinutes),
+      autoCompleteLessons: r.autoCompleteLessons === true,
+      autoPromoteAfterFirstLesson: r.autoPromoteAfterFirstLesson === true,
     });
   });
 }

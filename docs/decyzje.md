@@ -1,6 +1,6 @@
 # Decyzje projektu
 
-Wersja 0.8 z 13.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
+Wersja 0.9 z 13.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
 
 ## 1. Produkt
 
@@ -55,7 +55,7 @@ Wersja 0.8 z 13.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
   - kwota to cena lekcji z usługi; bez ceny nowa para dostaje odmowę z informacją o płatności online;
   - sesja Stripe Checkout kończy się razem z blokadą terminu (Stripe wymaga od 30 minut do 24 godzin);
   - po zapłacie rezerwacja jest zarezerwowana, a w historii są dwa wpisy: +lekcja z płatności i −lekcja za rezerwację (saldo bez zmian);
-  - zdarzenie `checkout.session.expired` albo nieudana płatność (`async_payment_failed`) zmienia rezerwację na `expired` i termin wraca do puli; blokada, której czas minął, i tak nie zajmuje terminu, a przy kolejnej rezerwacji zmienia się na `expired`;
+  - zdarzenie `checkout.session.expired` albo nieudana płatność (`async_payment_failed`) zmienia rezerwację na `expired` i termin wraca do puli; blokada, której czas minął, i tak nie zajmuje terminu; zadania w tle (etap 5a) w ciągu minuty zmieniają ją na `expired`, a płatność przepada (`expired`); to samo robi też kolejna rezerwacja u tego instruktora;
   - para może dokończyć płatność („Zapłać”) albo zrezygnować („Zrezygnuj z lekcji”) w okienku lekcji; rezygnacja od razu zwalnia termin i zamyka sesję w Stripe;
   - płatność, która dotrze po zwolnieniu terminu, trafia na konto klienta jako lekcja do wykorzystania, a w dzienniku zostaje wpis `payment.late`. Widoczny alert dla szkoły jest w planie (etap 5).
   - Szkoła nie wpisuje nowej parze lekcji z płatnością online: wtedy przyjmuje gotówkę (zakładka „Wpłata”).
@@ -79,7 +79,7 @@ Wersja 0.8 z 13.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy 
 - Lekcji, która już się zaczęła, nie można odwołać.
 - Szkoła odwołuje lekcję klienta według tych samych zasad i zapisuje, kto odwołał. Gdy lekcję odwołuje szkoła po terminie, a lekcja ma wrócić na konto, admin dopisuje korektę `adjustment` z notatką.
 - Nieobecność: status `no_show` i lekcja przepada. Szkoła oznacza ją w kalendarzu od początku lekcji (zarezerwowanej albo odbytej). Pomyłkę można cofnąć: lekcja wraca do statusu sprzed oznaczenia.
-- Lekcja sama zmienia się na `completed` po swoim końcu (ustawienie `auto_complete_lessons`), chyba że admin oznaczy nieobecność.
+- Lekcja sama zmienia się na `completed` po swoim końcu (ustawienie `auto_complete_lessons`, zadania w tle z etapu 5a). Nieobecność szkoła oznacza przed tym albo po tym.
 
 ### Reguły grafiku (ustawienia firmy w `organization_settings`)
 
@@ -146,7 +146,7 @@ Szkoła (właściciel, admin) ustawia grafik na osobnej stronie „Ustawienia”
 - **Reguły grafiku** w panelu: `back_to_back_slots`, `slot_step_minutes`, `buffer_minutes`, `min_gap_minutes`, `compact_days`, `min_notice_minutes` (w panelu w godzinach), `max_advance_days`, `cancel_deadline_hours` i `first_lesson_prepaid`. Wolne terminy liczą się według nich od razu; zarezerwowane lekcje zostają bez zmian.
   - Zakresy: lekcje co 5–240 min, przerwa 0–240 min, najkrótsza dziura 0–600 min, wyprzedzenie 0–720 h, horyzont 1–730 dni, termin odwołania 0–720 h.
   - Domyślny limit zaufanej pary (`default_trusted_credit_limit`, 0–20 lekcji) jest w tych samych ustawieniach, w części „Klienci” (etap 3c).
-  - Ustawienia przypomnień, płatności i automatycznych statusów dojdą do panelu w etapach 4 i 5 (`plan.md`).
+  - Automatyczne zmiany statusów (`auto_complete_lessons`, `auto_promote_after_first_lesson`) są w części „Po lekcji” (etap 5a). Kiedy wysłać przypomnienie (`reminder_hours_before`) dojdzie w etapie 5b (`plan.md`).
 - **Usługi:** nazwa, długość (5–600 min), ile lekcji zdejmuje z konta (1–10), wyłączanie i włączanie.
   - Nowa długość i koszt dotyczą nowych rezerwacji; zarezerwowane lekcje zostają bez zmian.
   - Ostatniej aktywnej usługi nie można wyłączyć, bo nikt nie mógłby zarezerwować lekcji.
@@ -184,7 +184,23 @@ Nowa para zapisuje się sama na stronie zapisów szkoły: `/zapisy/<adres szkoł
   - Para dodana przez szkołę bez adresu e-mail, która zapisze się sama, będzie miała dwa profile. Łączenie profili jest w planie na później.
 - **Osoba z rolą w szkole** (właściciel, administrator, instruktor) nie zapisuje się jako para; profil klienta może jej założyć szkoła. Strona zapisów mówi jej to i pozwala się wylogować, żeby sprawdzić zapis innym adresem.
 - **Każda szkoła ma stronę zapisów** (bez wyłącznika). Strona jest dostępna tylko pod adresem, który szkoła sama komuś poda. Wyłącznik zapisów w ustawieniach jest w planie na później.
-- Zapis trafia do dziennika (`audit_log`, `client.registered`). Mail do szkoły o nowej parze jest w planie (etap 5).
+- Zapis trafia do dziennika (`audit_log`, `client.registered`). Mail do szkoły o nowej parze jest w planie (etap 5b).
+
+### Zadania w tle (etap 5a)
+
+Serwer aplikacji sam zmienia statusy, które zależą od upływu czasu: od razu po starcie, potem co minutę. Zasady pilnuje `src/lib/background.ts`.
+
+- **Jak działają:** Next.js uruchamia je przy starcie serwera (`src/instrumentation.ts`), bez osobnego procesu ani crona. Gdy aplikacja nie działa (np. wyłączony komputer), nic się nie zmienia, a po starcie zadania od razu nadrabiają zaległości.
+  - Każda firma osobno, w transakcji z ustawioną firmą (`withTenant`), więc działa RLS. Błąd w jednej firmie trafia do logu serwera, a pozostałe firmy idą dalej.
+  - Zadania można powtarzać: zmieniają tylko wiersze w starym stanie, więc dwa przebiegi naraz (np. dwa serwery) niczego nie zdublują.
+  - Każda zmiana trafia do dziennika (`audit_log`) bez autora: `booking.hold_expired`, `booking.completed`, `client.promoted`.
+- **Wygasła blokada terminu na płatność:** rezerwacja `expired`, termin wraca do puli, płatność przepada (`expired`). Płatność, która dotrze później, i tak trafia na konto pary jako lekcja do wykorzystania (`payment.late`).
+- **Lekcja odbyta:** zarezerwowana lekcja po swoim końcu zmienia się na `completed` (ustawienie `auto_complete_lessons`, domyślnie włączone). Odwołane lekcje, nieobecności i lekcje czekające na płatność zostają bez zmian. Nieobecność szkoła może oznaczyć także na lekcji odbytej.
+- **Awans nowej pary:** nowa para, której lekcja właśnie zmieniła się na odbytą, staje się stała (ustawienie `auto_promote_after_first_lesson`, domyślnie włączone). Limit zostaje 0.
+  - Awans liczy się w chwili oznaczenia lekcji jako odbytej. Para, którą szkoła potem sama ustawi z powrotem jako nową, zostaje nowa do kolejnej odbytej lekcji.
+  - Awans działa tylko razem z oznaczaniem lekcji jako odbytych. Jeśli szkoła oznaczy nieobecność już po awansie, status zostaje; szkoła może go zmienić na stronie Klienci.
+  - Zaufana para zostaje zaufana ze swoim limitem.
+- **Ustawienia:** oba przełączniki są w Ustawieniach, w części „Po lekcji”.
 
 ### Na później (poza wersją 1)
 
@@ -203,6 +219,7 @@ Lista pomysłów na później jest w [plan.md](plan.md), razem z etapami wersji 
   - osoba dodana wcześniej przez szkołę loguje się do tego samego konta (ten sam e-mail), bez dublowania;
   - Auth.js odpadł: od września 2025 dostaje tylko poprawki bezpieczeństwa, a jego opiekunowie polecają Better Auth.
 - **Maile:** wysyłka przez SMTP (nodemailer). Lokalnie Mailpit z docker-compose łapie wszystkie maile.
+- **Zadania w tle (etap 5a):** uruchamia je sam serwer aplikacji (`src/instrumentation.ts`): od razu po starcie, potem co minutę. Bez osobnego procesu ani crona, więc wystarczy `npm run dev` albo `npm start`. Szczegóły w części „Zadania w tle”.
 - **Testy:** Vitest na prawdziwym PostgreSQL (`docker compose`). Każda reguła biznesowa ma test nazwany jak reguła, po polsku. Kod pisze głównie AI, więc testy są głównym narzędziem kontroli. Na GitHubie przy każdym PR działają: sprawdzenie typów, testy, zgodność typów bazy i budowanie aplikacji.
 - **Język w kodzie:** identyfikatory po angielsku; komentarze, dokumentacja i interfejs po polsku.
 - **Wdrożenie (ustalone 12.11.2026):**
@@ -247,4 +264,4 @@ Etapy z listą rzeczy do zrobienia i stanem każdego z nich są w [plan.md](plan
 2. Szkielet aplikacji i logowanie — gotowe (PR #2).
 3. Kalendarz i rezerwacje (3a) — gotowe (PR #3), ustawienia grafiku w panelu (3b) — gotowe (PR #4), klienci w panelu (3c) — gotowe (PR #5).
 4. Płatności: ceny, pakiety i gotówka (4a) — gotowe (PR #6), płatności online przez Stripe (4b) — gotowe (PR #7), samodzielna rejestracja nowej pary (4c) — gotowe (PR #8).
-5. Przypomnienia i zadania w tle.
+5. Zadania w tle (5a) — gotowe (PR #9), maile: przypomnienia, alerty dla szkoły (5b).

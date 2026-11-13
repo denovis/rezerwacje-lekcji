@@ -54,6 +54,8 @@ const DEFAULT_RULES: ScheduleRules = {
   firstLessonPrepaid: true,
   defaultTrustedCreditLimit: 1,
   paymentHoldMinutes: 30,
+  autoCompleteLessons: true,
+  autoPromoteAfterFirstLesson: true,
 };
 
 let owner: pg.Pool;
@@ -405,6 +407,18 @@ describe('Reguły grafiku', () => {
     await updateScheduleRules(db, firm.staff, { ...DEFAULT_RULES, bufferMinutes: 15 });
     expect(await slotsOn(firm, MONDAY)).toEqual(['16:00', '17:00', '18:00', '19:00', '20:00']);
     expect((await loadScheduleSetup(db, firm.staff, NOW)).rules).toEqual({ ...DEFAULT_RULES, bufferMinutes: 15 });
+  });
+
+  it('szkoła wyłącza w ustawieniach automatyczne oznaczanie lekcji jako odbytych i awans nowej pary', async () => {
+    const firm = await createFirm();
+    const rules = { ...DEFAULT_RULES, autoCompleteLessons: false, autoPromoteAfterFirstLesson: false };
+    await updateScheduleRules(db, firm.staff, rules);
+    expect((await loadScheduleSetup(db, firm.staff, NOW)).rules).toEqual(rules);
+    const { rows } = await owner.query(
+      'SELECT auto_complete_lessons, auto_promote_after_first_lesson FROM organization_settings WHERE organization_id = $1',
+      [firm.orgId],
+    );
+    expect(rows).toEqual([{ auto_complete_lessons: false, auto_promote_after_first_lesson: false }]);
   });
 
   it('dłuższy termin odwołania z ustawień od razu dotyczy odwołań', async () => {

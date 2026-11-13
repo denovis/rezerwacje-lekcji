@@ -75,6 +75,10 @@ export interface ScheduleRules {
   defaultTrustedCreditLimit: number;
   /** Jak długo termin pierwszej lekcji czeka na płatność online (Stripe: od 30 minut do 24 godzin). */
   paymentHoldMinutes: number;
+  /** Zadania w tle: lekcja po swoim końcu zmienia się na odbytą. */
+  autoCompleteLessons: boolean;
+  /** Zadania w tle: nowa para po pierwszej odbytej lekcji staje się stała. */
+  autoPromoteAfterFirstLesson: boolean;
 }
 
 type NumericRule = { [K in keyof ScheduleRules]: ScheduleRules[K] extends number ? K : never }[keyof ScheduleRules];
@@ -323,6 +327,8 @@ export function loadScheduleSetup(db: Database, ctx: FirmContext, now: Date = ne
         'firstLessonPrepaid',
         'defaultTrustedCreditLimit',
         'paymentHoldMinutes',
+        'autoCompleteLessons',
+        'autoPromoteAfterFirstLesson',
       ])
       .executeTakeFirstOrThrow();
 
@@ -635,6 +641,8 @@ export function updateScheduleRules(db: Database, ctx: FirmContext, rules: Sched
       firstLessonPrepaid: Boolean(rules.firstLessonPrepaid),
       defaultTrustedCreditLimit: rules.defaultTrustedCreditLimit,
       paymentHoldMinutes: rules.paymentHoldMinutes,
+      autoCompleteLessons: Boolean(rules.autoCompleteLessons),
+      autoPromoteAfterFirstLesson: Boolean(rules.autoPromoteAfterFirstLesson),
     };
     await tx.updateTable('organizationSettings').set(values).where('organizationId', '=', ctx.organizationId).execute();
     await audit(tx, ctx, 'settings.schedule_updated', 'organization_settings', ctx.organizationId, { ...values });

@@ -85,14 +85,23 @@ Strona zapisów szkoły `/zapisy/<adres szkoły>`; link do niej szkoła ma na st
 - [x] Na stronie Klienci: link do zapisów z przyciskiem „Kopiuj link”.
 - [x] Commit i PR.
 
-### Etap 5. Przypomnienia i zadania w tle: zaplanowane
+Etap 5 podzielony 13.11.2026 na dwa PR-y: 5a zmienia statusy w tle (bez maili), 5b wysyła maile.
+
+### Etap 5a. Zadania w tle: gotowe (PR #9)
+
+Serwer aplikacji co minutę sprawdza wszystkie firmy, a po starcie od razu nadrabia to, co wypadło, gdy aplikacja nie działała.
+
+- [x] Wygasanie blokad terminu na czas płatności.
+- [x] Lekcja po swoim końcu zmienia się na „odbytą”.
+- [x] Para po pierwszej odbytej lekcji staje się stała.
+- [x] W ustawieniach: włączanie automatycznych zmian statusów (`auto_complete_lessons`, `auto_promote_after_first_lesson`) (dopisane w etapie 3b).
+- [x] Commit i PR.
+
+### Etap 5b. Maile: zaplanowane
 
 - [ ] Przypomnienie mailem przed lekcją.
-- [ ] Wygasanie blokad terminu na czas płatności.
-- [ ] Lekcja po swoim końcu zmienia się na „odbytą”.
-- [ ] Para po pierwszej odbytej lekcji staje się stała.
+- [ ] W ustawieniach: kiedy wysłać przypomnienie (`reminder_hours_before`) (dopisane w etapie 3b).
 - [ ] Alert dla szkoły o płatności, która dotarła po zwolnieniu terminu (dziś tylko wpis payment.late w dzienniku) (dopisane w etapie 4b).
-- [ ] W ustawieniach: kiedy wysłać przypomnienie i włączanie automatycznych zmian statusów (`reminder_hours_before`, `auto_complete_lessons`, `auto_promote_after_first_lesson`) (dopisane w etapie 3b).
 - [ ] Mail do szkoły o nowej parze, która zapisała się sama (dziś tylko wpis client.registered w dzienniku i para na liście Klienci) (dopisane w etapie 4c).
 
 ## Na później (po wersji 1)
