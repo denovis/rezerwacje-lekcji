@@ -1,6 +1,6 @@
 # Decyzje projektu
 
-Wersja 0.7 z 12.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
+Wersja 0.8 z 13.11.2026. To żywy dokument: gdy zmienia się decyzja, zmieniamy ją tutaj w tym samym PR co kod.
 
 ## 1. Produkt
 
@@ -170,6 +170,22 @@ Szkoła (właściciel, admin) prowadzi klientów na stronie „Klienci” (przyc
 - **Na minusie:** pary z saldem poniżej zera, od największego długu.
 - **Nieobecność:** w okienku lekcji w kalendarzu („Oznacz nieobecność”, „Cofnij nieobecność”), tylko dla szkoły. Okienko lekcji ma też link do historii i salda pary.
 
+### Samodzielna rejestracja nowej pary (etap 4c)
+
+Nowa para zapisuje się sama na stronie zapisów szkoły: `/zapisy/<adres szkoły>`, np. `/zapisy/szkola-pierwszego-tanca`. Szkoła ma ten link na stronie Klienci (przycisk „Kopiuj link”) i wkleja go parom, np. na swoją stronę albo w wiadomości. Zasady pilnuje `src/lib/registration.ts`.
+
+- **Najpierw adres e-mail, potem dane.** Para podaje adres i dostaje link z maila (ten sam co przy logowaniu). Kliknięcie linku potwierdza adres, zakłada konto i wraca na stronę zapisów, gdzie para podaje dane. Po zapisie trafia prosto do kalendarza.
+  - Dlaczego w tej kolejności: do potwierdzenia adresu nic nie trafia do danych szkoły. Nikt nie zapisze pary cudzym adresem, a szkoła nie dostaje profili, których nie da się usunąć (nic nie kasujemy).
+  - Formularz zawsze odpowiada „wysłaliśmy link”, więc nie zdradza, czy adres jest już w systemie.
+- **Dane:** nazwa pary i telefon są wymagane (szkoła musi mieć jak zadzwonić), data ślubu jest opcjonalna. Adres e-mail profilu to adres, którym para się zalogowała, a nie wpisany w formularzu.
+- **Status:** nowa para dostaje status `new` i limit 0, tak jak para dodana przez szkołę. Pierwszą lekcję opłaca online (etap 4b) albo dostaje lekcje od szkoły (gotówka).
+- **Bez dubli:** para, która ma już profil w szkole (zapisała się wcześniej albo dodała ją szkoła z tym adresem), od razu trafia do kalendarza. Dwa zapisy tej samej osoby w tej samej chwili zakładają jeden profil (pilnuje unikalny indeks w bazie).
+  - Gdy szkoła ma już parę z tym adresem, ale bez konta (np. ze starych danych), zapis odmawia i prosi o kontakt ze szkołą.
+  - Para dodana przez szkołę bez adresu e-mail, która zapisze się sama, będzie miała dwa profile. Łączenie profili jest w planie na później.
+- **Osoba z rolą w szkole** (właściciel, administrator, instruktor) nie zapisuje się jako para; profil klienta może jej założyć szkoła. Strona zapisów mówi jej to i pozwala się wylogować, żeby sprawdzić zapis innym adresem.
+- **Każda szkoła ma stronę zapisów** (bez wyłącznika). Strona jest dostępna tylko pod adresem, który szkoła sama komuś poda. Wyłącznik zapisów w ustawieniach jest w planie na później.
+- Zapis trafia do dziennika (`audit_log`, `client.registered`). Mail do szkoły o nowej parze jest w planie (etap 5).
+
 ### Na później (poza wersją 1)
 
 Lista pomysłów na później jest w [plan.md](plan.md), razem z etapami wersji 1.
@@ -230,5 +246,5 @@ Etapy z listą rzeczy do zrobienia i stanem każdego z nich są w [plan.md](plan
 1. Model danych — gotowe (PR #1).
 2. Szkielet aplikacji i logowanie — gotowe (PR #2).
 3. Kalendarz i rezerwacje (3a) — gotowe (PR #3), ustawienia grafiku w panelu (3b) — gotowe (PR #4), klienci w panelu (3c) — gotowe (PR #5).
-4. Płatności: ceny, pakiety i gotówka (4a), płatności online przez Stripe (4b), samodzielna rejestracja nowej pary (4c).
+4. Płatności: ceny, pakiety i gotówka (4a) — gotowe (PR #6), płatności online przez Stripe (4b) — gotowe (PR #7), samodzielna rejestracja nowej pary (4c) — gotowe (PR #8).
 5. Przypomnienia i zadania w tle.

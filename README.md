@@ -57,7 +57,8 @@ Po zmianie migracji: `npm run db:migrate && npm run db:types` (typy tabel dla Ty
 db/migrations/   migracje SQL (źródło prawdy dla modelu danych)
 db/*.ts          migracje, hasło roli app_user, dane startowe
 db/tests/        testy reguł pilnowanych przez bazę
-src/app/         strony Next.js: logowanie, wybór firmy, panel z kalendarzem tygodniowym
+src/app/         strony Next.js: logowanie, zapisy nowej pary (/zapisy/<adres szkoły>), wybór firmy,
+                 panel z kalendarzem tygodniowym
 src/lib/         baza (withTenant), logowanie, maile, ustawienia, wolne terminy (slots),
                  rezerwacje i odwołania (bookings), dane kalendarza (week) + testy
 docs/            decyzje i model danych

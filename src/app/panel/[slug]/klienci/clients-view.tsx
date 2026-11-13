@@ -29,6 +29,32 @@ const STATUS_HINTS: Record<ClientStatus, string> = {
   trusted: 'Może zejść poniżej zera do swojego limitu i płacić na miejscu.',
 };
 
+/**
+ * Kopiuje tekst do schowka. Niektóre przeglądarki (np. okna wbudowane w inne aplikacje) nie pozwalają
+ * na navigator.clipboard; wtedy próbujemy starszym sposobem przez zaznaczone pole tekstowe.
+ */
+async function copyText(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    const field = document.createElement('textarea');
+    field.value = value;
+    field.setAttribute('readonly', '');
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    document.body.append(field);
+    field.select();
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      field.remove();
+    }
+  }
+}
+
 /** Saldo ze znakiem plus dla dopisanych lekcji, np. „+5 lekcji”, „−1 lekcja”. */
 const signed = (delta: number) => `${delta > 0 ? '+' : ''}${lessonsLabel(delta)}`;
 
@@ -37,11 +63,14 @@ export function ClientsView({
   debtorIds,
   slug,
   openClientId,
+  signUpUrl,
 }: {
   overview: ClientsOverview;
   debtorIds: string[];
   slug: string;
   openClientId: string | null;
+  /** Strona, na której nowe pary zapisują się same (etap 4c). */
+  signUpUrl: string;
 }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
@@ -65,9 +94,28 @@ export function ClientsView({
   );
   const current = dialog?.type === 'client' ? overview.clients.find((c) => c.id === dialog.clientId) : undefined;
 
+  const copySignUpUrl = async () => {
+    const copied = await copyText(signUpUrl);
+    setMessage(
+      copied
+        ? { kind: 'ok', text: 'Skopiowano link do zapisów. Wklejcie go parom, np. na stronę szkoły.' }
+        : { kind: 'error', text: 'Nie udało się skopiować linku. Zaznacz go i skopiuj ręcznie.' },
+    );
+  };
+
   return (
     <>
       <Toast message={message} onHide={() => setMessage(null)} />
+
+      <p className="small signup-link">
+        <span className="muted">Nowe pary zapisują się same pod adresem: </span>
+        <a href={signUpUrl} target="_blank" rel="noreferrer">
+          {signUpUrl}
+        </a>{' '}
+        <button type="button" className="link-button accent" onClick={copySignUpUrl}>
+          Kopiuj link
+        </button>
+      </p>
 
       <div className="clients-toolbar">
         <input
